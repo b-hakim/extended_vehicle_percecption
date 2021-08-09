@@ -217,6 +217,12 @@ def run(hyper_params):
         #     traci.trafficlight.setRedYellowGreenState("0", "GrGr")
 
         traci.simulationStep()
+        traci.route.getIDList()
+        # print(vehicle_list)
+        net = sumolib.net.readNet(hyper_params['scenario_path'])
+
+        # 1) Get All Vehicles with Wireless
+        vehicle_ids = traci.vehicle.getIDList()
 
         print("Speed", traci.vehicle.getSpeed(vehicle_ids[0]),
               "Position", traci.vehicle.getPosition(vehicle_ids[0]),
@@ -232,9 +238,6 @@ def run(hyper_params):
               "Route", traci.vehicle.getRoute(vehicle_ids[0]),
               "Road", traci.vehicle.getRoadID(vehicle_ids[0]))
 
-        traci.route.getIDList()
-        # print(vehicle_list)
-        net = sumolib.net.readNet(hyper_params['scenario_path'])
         road_id = traci.vehicle.getRoadID(vehicle_ids[0])
 
         if road_id[0] == ':':
@@ -243,9 +246,6 @@ def run(hyper_params):
         else:
             polyline = net.getEdge(road_id).getShape()
             print("poly line:", polyline)
-
-        # 1) Get All Vehicles with Wireless
-        vehicle_ids = traci.vehicle.getIDList()
 
         if len(vehicle_ids) == 0:
             break
