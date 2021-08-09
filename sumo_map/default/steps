@@ -1,0 +1,9 @@
+netconvert --osm-files map.osm -o test.net.xml -t osmNetconvert.typ.xml --xml-validation never
+
+polyconvert --net-file test.net.xml --osm-files map.osm --type-file typemap.xml -o map.poly.xml --xml-validation never
+
+codna activate sumo
+
+python randomTrips.py -n test.net.xml -r map.rou.xml -e 1000 -l --validate -p 50 -b 0-e 2
+
+sumo-gui net.sumo.cfg
