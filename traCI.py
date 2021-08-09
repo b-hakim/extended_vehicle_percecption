@@ -7,7 +7,8 @@ import sumolib
 from vehicle_info import Vehicle
 
 
-def get_seen_vehicles(cv2x_vehicles_indexes, non_cv2x_vehicles_ids, vehicle_id_list, max_view_range, angle_view):
+def get_seen_vehicles(cv2x_vehicles_indexes, non_cv2x_vehicles_ids, vehicle_id_list, buildings,
+                      max_view_range, angle_view):
     """
     1- Use angle of view to get all vehicles in range
     2- Use vector from each cv2x_vehicle to all non-cv2x-vehicles
@@ -46,27 +47,33 @@ def get_seen_vehicles(cv2x_vehicles_indexes, non_cv2x_vehicles_ids, vehicle_id_l
                                        vehicle_id=non_cv2x_id, vehicle_angle_degree=traci.vehicle.getAngle(cv2x_id),
                                        perception_range=-1, perception_angle=-1)
 
-            if cv2x_vehicle.can_see(non_cv2x_vehicle):
+            if cv2x_vehicle.can_see_vehicle(non_cv2x_vehicle):
                 is_occluded = False
 
-                for non_cv2x_obstacle_index in non_cv2x_vehicles_ids:
-                    non_cv2x_obstacle_id = vehicle_id_list[non_cv2x_obstacle_index]
+                for building in buildings:
+                    if cv2x_vehicle.building_in_sight(building, non_cv2x_vehicle):
+                        is_occluded = True
+                        break
 
-                    if non_cv2x_obstacle_id != non_cv2x_id:
-                        non_cv2x_obstacle_vehicle = Vehicle(future_routes=[],
-                                                            dimension=(traci.vehicle.getWidth(non_cv2x_obstacle_id),
-                                                                       traci.vehicle.getLength(non_cv2x_obstacle_id),
-                                                                       traci.vehicle.getHeight(non_cv2x_obstacle_id)),
-                                                            pos=traci.vehicle.getPosition(non_cv2x_obstacle_id),
-                                                            speed=traci.vehicle.getSpeed(non_cv2x_obstacle_id),
-                                                            acc=traci.vehicle.getAcceleration(non_cv2x_obstacle_id),
-                                                            vehicle_id=non_cv2x_obstacle_id,
-                                                            vehicle_angle_degree=traci.vehicle.getAngle(cv2x_id),
-                                                            perception_range=-1, perception_angle=-1)
+                if not is_occluded:
+                    for non_cv2x_obstacle_index in non_cv2x_vehicles_ids:
+                        non_cv2x_obstacle_id = vehicle_id_list[non_cv2x_obstacle_index]
 
-                        if cv2x_vehicle.object_in_sight(non_cv2x_obstacle_vehicle, non_cv2x_vehicle):
-                            is_occluded = True
-                            break
+                        if non_cv2x_obstacle_id != non_cv2x_id:
+                            non_cv2x_obstacle_vehicle = Vehicle(future_routes=[],
+                                                                dimension=(traci.vehicle.getWidth(non_cv2x_obstacle_id),
+                                                                           traci.vehicle.getLength(non_cv2x_obstacle_id),
+                                                                           traci.vehicle.getHeight(non_cv2x_obstacle_id)),
+                                                                pos=traci.vehicle.getPosition(non_cv2x_obstacle_id),
+                                                                speed=traci.vehicle.getSpeed(non_cv2x_obstacle_id),
+                                                                acc=traci.vehicle.getAcceleration(non_cv2x_obstacle_id),
+                                                                vehicle_id=non_cv2x_obstacle_id,
+                                                                vehicle_angle_degree=traci.vehicle.getAngle(cv2x_id),
+                                                                perception_range=-1, perception_angle=-1)
+
+                            if cv2x_vehicle.vehicle_in_sight(non_cv2x_obstacle_vehicle, non_cv2x_vehicle):
+                                is_occluded = True
+                                break
 
                 if not is_occluded:
                     if cv2x_id in cv2x_vehicles_perception:
@@ -84,9 +91,10 @@ else:
     sys.exit("please declare environment variable 'SUMO_HOME'")
 
 
-def get_interest_cv2x_in_vehicle(cv2x_id, non_cv2x_id, p):
+def get_interest_cv2x_in_vehicle(cv2x_vehicle, non_cv2x_vehicle, p):
     # Traj = the trajectory of the cv2x vehicle.
     # Assume max velocity of cv2x = 40 m/s. Therefore, Traj for 5 sec has a max of 200m travel distance
+
     # Get trajectory from="noncv2x_vehicle" to differnet segment of "Traj".
     # Let noncv2x_vehicle speed = max(its own speed, 20 m/s),
     #           calculate the time taken to reach different segemnts of "Traj"
@@ -98,30 +106,55 @@ def get_interest_cv2x_in_vehicle(cv2x_id, non_cv2x_id, p):
 
 
 
-def calculate_scores_per_cv2x(cv2x_detected_vehicles, hyper_params):
+def calculate_scores_per_cv2x(cv2x_detected_vehicles, buildings, hyper_params):
     cv2x_ids = list(cv2x_detected_vehicles.keys())
     scores_per_cv2x = {}
 
-    for cv2x_id, non_cv2x_ids in cv2x_detected_vehicles.items():
+    for current_cv2x_id, current_perceived_non_cv2x_ids in cv2x_detected_vehicles.items():
         current_cv2x_vehicle = Vehicle(future_routes=[],
-                               dimension=(traci.vehicle.getWidth(cv2x_id),
-                                          traci.vehicle.getLength(cv2x_id),
-                                          traci.vehicle.getHeight(cv2x_id)),
-                               pos=traci.vehicle.getPosition(cv2x_id),
-                               speed=traci.vehicle.getSpeed(cv2x_id),
-                               acc=traci.vehicle.getAcceleration(cv2x_id),
-                               vehicle_id=cv2x_id, vehicle_angle_degree=traci.vehicle.getAngle(cv2x_id),
+                               dimension=(traci.vehicle.getWidth(current_cv2x_id),
+                                          traci.vehicle.getLength(current_cv2x_id),
+                                          traci.vehicle.getHeight(current_cv2x_id)),
+                               pos=traci.vehicle.getPosition(current_cv2x_id),
+                               speed=traci.vehicle.getSpeed(current_cv2x_id),
+                               acc=traci.vehicle.getAcceleration(current_cv2x_id),
+                               vehicle_id=current_cv2x_id, vehicle_angle_degree=traci.vehicle.getAngle(current_cv2x_id),
                                perception_range=hyper_params["view_range"], perception_angle=hyper_params["angle_view"])
 
-        other_cv2x_ids = list(set(cv2x_ids) - set([cv2x_id]))
+        other_cv2x_ids = list(set(cv2x_ids) - set([current_cv2x_id]))
         scores = []
 
-        for non_cv2x_id in non_cv2x_ids:
-            for other_cv2x_id in other_cv2x_ids:
-                p = current_cv2x_vehicle.get_probability_v1_sees_v2(cv2x_id, non_cv2x_id)
-                scores.append(get_interest_cv2x_in_vehicle(other_cv2x_id, non_cv2x_id))
+        for cv2x_id in other_cv2x_ids:
+            for perceived_non_cv2x_id in current_perceived_non_cv2x_ids:
+                remaining_perceived_non_cv2x_ids = list(set(current_perceived_non_cv2x_ids)-set(perceived_non_cv2x_id))
+                cv2x_vehicle = Vehicle(future_routes=[],
+                        dimension=(traci.vehicle.getWidth(cv2x_id),
+                                   traci.vehicle.getLength(cv2x_id),
+                                   traci.vehicle.getHeight(cv2x_id)),
+                        pos=traci.vehicle.getPosition(cv2x_id),
+                        speed=traci.vehicle.getSpeed(cv2x_id),
+                        acc=traci.vehicle.getAcceleration(cv2x_id),
+                        vehicle_id=cv2x_id, vehicle_angle_degree=traci.vehicle.getAngle(cv2x_id),
+                        perception_range=hyper_params["view_range"], perception_angle=hyper_params["angle_view"])
 
-        scores_per_cv2x[cv2x_id] = scores
+                perceived_non_cv2x_vehicle = Vehicle(future_routes=[],
+                        dimension=(traci.vehicle.getWidth(perceived_non_cv2x_id),
+                                   traci.vehicle.getLength(perceived_non_cv2x_id),
+                                   traci.vehicle.getHeight(perceived_non_cv2x_id)),
+                        pos=traci.vehicle.getPosition(perceived_non_cv2x_id),
+                        speed=traci.vehicle.getSpeed(perceived_non_cv2x_id),
+                        acc=traci.vehicle.getAcceleration(perceived_non_cv2x_id),
+                        vehicle_id=perceived_non_cv2x_id, vehicle_angle_degree=traci.vehicle.getAngle(perceived_non_cv2x_id),
+                        perception_range=hyper_params["view_range"], perception_angle=hyper_params["angle_view"])
+
+                p = current_cv2x_vehicle.get_probability_cv2x_sees_non_cv2x(cv2x_vehicle, perceived_non_cv2x_vehicle,
+                                                                            remaining_perceived_non_cv2x_ids, buildings)
+                if p == 0:
+                    scores.append(0)
+                else:
+                    scores.append(get_interest_cv2x_in_vehicle(cv2x_vehicle, perceived_non_cv2x_vehicle, p))
+
+        scores_per_cv2x[current_cv2x_id] = scores
 
 
 def calculate_highest_score_per_cv2x(scores_per_cv2x):
@@ -209,6 +242,8 @@ def run(hyper_params):
          3663960471, 3432564679, 3034272847, 1488021615, 703005220, 571536384, 2685851810, 2390542757, 1779261646,
          787238516, 974950271, 1461182985, 92911325, 560087797, 659679365, 1577492191, 103023888, 1700994443,
          4033001505, 2338101717, 3125582762], dtype="uint32"), 1, 0, 0.0))
+    # traci.
+    # buildings = load_scenario_buildings(hyper_params['scenario_buildings'])
 
     while step < 100000:
         step += 1
@@ -220,41 +255,42 @@ def run(hyper_params):
         traci.route.getIDList()
         # print(vehicle_list)
         net = sumolib.net.readNet(hyper_params['scenario_path'])
+        buildings = sumolib.shapes.polygon.read('/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto/map.poly.xml')
 
         # 1) Get All Vehicles with Wireless
         vehicle_ids = traci.vehicle.getIDList()
 
-        print("Speed", traci.vehicle.getSpeed(vehicle_ids[0]),
-              "Position", traci.vehicle.getPosition(vehicle_ids[0]),
-              "Pos 3D", traci.vehicle.getPosition3D(vehicle_ids[0]),
-              "Accel", traci.vehicle.getAccel(vehicle_ids[0]),
-              "Accelaration", traci.vehicle.getAcceleration(vehicle_ids[0]),
-              "Angle", traci.vehicle.getAngle(vehicle_ids[0]),
-              "Slope", traci.vehicle.getSlope(vehicle_ids[0]),
-              "Height", traci.vehicle.getHeight(vehicle_ids[0]),
-              "Length", traci.vehicle.getLength(vehicle_ids[0]),
-              "Width", traci.vehicle.getWidth(vehicle_ids[0]),
-              "Line", traci.vehicle.getLine(vehicle_ids[0]),
-              "Route", traci.vehicle.getRoute(vehicle_ids[0]),
-              "Road", traci.vehicle.getRoadID(vehicle_ids[0]))
+        print("Speed", traci.vehicle.getSpeed(vehicle_ids[0]), "\n"
+              "Position", traci.vehicle.getPosition(vehicle_ids[0]), "\n"
+              "Pos 3D", traci.vehicle.getPosition3D(vehicle_ids[0]), "\n"
+              "Accel", traci.vehicle.getAccel(vehicle_ids[0]), "\n"
+              "Accelaration", traci.vehicle.getAcceleration(vehicle_ids[0]), "\n"
+              "Angle", traci.vehicle.getAngle(vehicle_ids[0]), "\n"
+              "Slope", traci.vehicle.getSlope(vehicle_ids[0]), "\n"
+              "Height", traci.vehicle.getHeight(vehicle_ids[0]), "\n"
+              "Length", traci.vehicle.getLength(vehicle_ids[0]), "\n"
+              "Width", traci.vehicle.getWidth(vehicle_ids[0]), "\n"
+              "Line", traci.vehicle.getLine(vehicle_ids[0]), "\n"
+              "Route", traci.vehicle.getRoute(vehicle_ids[0]), "\n"
+              "Road", traci.vehicle.getRoadID(vehicle_ids[0]), "\n")
 
-        road_id = traci.vehicle.getRoadID(vehicle_ids[0])
-
-        if road_id[0] == ':':
-            polygon = net.getNode(road_id.split("_")[0][1:]).getShape()
-            print("polygon:", polygon)
-        else:
-            polyline = net.getEdge(road_id).getShape()
-            print("poly line:", polyline)
+        for road_id in traci.vehicle.getRoute(vehicle_ids[0]):
+            if road_id[0] == ':':
+                polygon = net.getNode(road_id.split("_")[0][1:]).getShape()
+                print("polygon:", polygon)
+            else:
+                polyline = net.getEdge(road_id).getShape()
+                print("poly line:","'"+road_id+"'" , polyline)
 
         if len(vehicle_ids) == 0:
             break
-
         else:
             snapshot = False
             if len(vehicle_ids) >= 50:
                 if np.random.random() > 0.5:
                     snapshot = True
+
+        print("=============================================================")
 
         if not snapshot:
             continue
@@ -265,7 +301,7 @@ def run(hyper_params):
 
         # 2) Get seen non-cv2x vehicles by each cv2x_vehicle
         cv2x_perceived_vehicles = get_seen_vehicles(cv2x_vehicles_ids, non_cv2x_vehicles_ids, vehicle_ids,
-                                                    hyper_params["view_range"], hyper_params["fov"])
+                                                    buildings, hyper_params["view_range"], hyper_params["fov"])
 
         # 3) Solve which info to send to base station
         # 3.1) Calculate required information
@@ -280,6 +316,7 @@ def run(hyper_params):
 
         if snapshot:
             break
+
 
     input("Simulation ended, close GUI?")
 
