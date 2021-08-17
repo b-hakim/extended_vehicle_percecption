@@ -30,7 +30,7 @@ def check_turn(line, pt):
     Explanation
     https://algorithmtutor.com/Computational-Geometry/Determining-if-two-consecutive-segments-turn-left-or-right/
     '''
-    x1, y1, x2, y2 = line
+    (x1, y1, x2, y2) = line
     if y2 > y1:
         x1, y1, x2, y2 = x2, y2, x1, y1
 
@@ -47,17 +47,26 @@ def check_turn(line, pt):
 
 
 def intersection_exists(l1, l2):
-    a = check_turn(l2, l1[0])
-    b = check_turn(l2, l1[1])
-    c = check_turn(l1, l2[0])
-    d = check_turn(l1, l2[1])
+    a = check_turn(l2, l1[0:2])
+    b = check_turn(l2, l1[2:4])
+    c = check_turn(l1, l2[0:2])
+    d = check_turn(l1, l2[2:4])
 
     return a != b and c != d
 
 
 def does_line_intersect_polygon(line, poly):
-    for i in range(len(poly)):
-        if intersection_exists(line, [line[i], line[i - 1]]):
+    for i in range(1, len(poly)):
+        if intersection_exists(line, poly[i] + poly[i - 1]):
             return True
     return False
 
+
+def euclidean_distance(pt1, pt2):
+    if type(pt1) is not np.ndarray:
+        pt1 = np.array(pt1)
+
+    if type(pt2) is not np.ndarray:
+        pt2 = np.array(pt2)
+
+    return np.linalg.norm(pt1-pt2)
