@@ -7,25 +7,35 @@ import numpy as np
 
 
 class Vehicle:
-    # def __init__(self,dimension, pos, speed, acc, vehicle_id, vehicle_angle_degree,
-    #              perception_range, perception_angle):
     def __init__(self, vehicle_id, hyper_params):
         self.dimension = (traci.vehicle.getWidth(vehicle_id),
                           traci.vehicle.getLength(vehicle_id),
                           traci.vehicle.getHeight(vehicle_id))
-        self.pos = traci.vehicle.getPosition(vehicle_id)
-        self.speed = traci.vehicle.getSpeed(vehicle_id)
-        self.acceleration = traci.vehicle.getAcceleration(vehicle_id)
-
-        vehicle_angle_degree = traci.vehicle.getAngle(vehicle_id)
-        self.heading_unit_vector = [np.cos(vehicle_angle_degree * np.pi / 180),
-                                    np.sin(vehicle_angle_degree * np.pi / 180)]
-        self.heading_unit_vector = self.heading_unit_vector / np.sqrt(np.dot(self.heading_unit_vector, self.heading_unit_vector))
 
         self.vehicle_id = vehicle_id
         self.perception_range = hyper_params["view_range"]
         self.perception_angle = hyper_params["fov"]
         self.__previous_edge_road = traci.vehicle.getRoute(self.vehicle_id)[0]
+
+    @property
+    def pos(self):
+        return traci.vehicle.getPosition(self.vehicle_id)
+
+    @property
+    def speed(self):
+        return traci.vehicle.getSpeed(self.vehicle_id)
+
+    @property
+    def acceleration(self):
+        return traci.vehicle.getAcceleration(self.vehicle_id)
+
+    @property
+    def heading_unit_vector(self):
+        vehicle_angle_degree = traci.vehicle.getAngle(self.vehicle_id)
+        heading_unit_vector = [np.cos(vehicle_angle_degree * np.pi / 180),
+                                    np.sin(vehicle_angle_degree * np.pi / 180)]
+        heading_unit_vector = heading_unit_vector / np.sqrt(np.dot(heading_unit_vector, heading_unit_vector))
+        return heading_unit_vector
 
     def get_future_route(self):
         full_route = traci.vehicle.getRoute(self.vehicle_id)
@@ -48,8 +58,8 @@ class Vehicle:
         # assert False ## need to find static obstacles to destination
         #intersect between line to destination and obj box
 
-        destination_vehicle_corners = Vehicle.get_vehicle_boundaries(destination_vehicle)
-        obstacle_vehicle_corners = [v.tolist() for v in Vehicle.get_vehicle_boundaries(obstacle_vehicle)]
+        destination_vehicle_corners = destination_vehicle.get_vehicle_boundaries()
+        obstacle_vehicle_corners = [v.tolist() for v in obstacle_vehicle.get_vehicle_boundaries()]
 
         # Get a line from my pos to the 4 corners of the destination
         # check if any of these passes through the box of a car, if at least 3 corners are invisible,
@@ -63,8 +73,7 @@ class Vehicle:
         invisibilities = np.array([does_line_intersect_polygon(line, obstacle_vehicle_corners) for line in lines])
         return np.count_nonzero(invisibilities) >= 3
 
-    @staticmethod
-    def get_vehicle_boundaries(v):
+    def get_vehicle_boundaries(self):
         # calculate 4 vectors based on v's heading to get vectors to the 4 corners
         def rotate_vector(vec, ceta_degree):
             ceta_rad = np.deg2rad(ceta_degree)
@@ -73,17 +82,17 @@ class Vehicle:
             rotated_vector = np.dot(rot_mat, vec)
             return rotated_vector
 
-        magnitude = np.linalg.norm([v.dimension[0]/2, v.dimension[1]/2])
-        corners = [magnitude * rotate_vector(v.heading_unit_vector, 45) + v.pos,
-                   magnitude * rotate_vector(v.heading_unit_vector, 135)+ v.pos,
-                   magnitude * rotate_vector(v.heading_unit_vector, -135)+ v.pos,
-                   magnitude * rotate_vector(v.heading_unit_vector, -45)+ v.pos]
+        magnitude = np.linalg.norm([self.dimension[0] / 2, self.dimension[1] / 2])
+        corners = [magnitude * rotate_vector(self.heading_unit_vector, 45) + self.pos,
+                   magnitude * rotate_vector(self.heading_unit_vector, 135) + self.pos,
+                   magnitude * rotate_vector(self.heading_unit_vector, -135) + self.pos,
+                   magnitude * rotate_vector(self.heading_unit_vector, -45) + self.pos]
 
         return corners
 
     def can_see_vehicle(self, non_cv2x_vehicle):
         # First check that the distance to the vehicle is less than the given range
-        non_cv2x_vehicle_corners = Vehicle.get_vehicle_boundaries(non_cv2x_vehicle)
+        non_cv2x_vehicle_corners = non_cv2x_vehicle.get_vehicle_boundaries()
 
         dists = [
             euclidean_distance(self.pos, non_cv2x_vehicle_corners[0]),
@@ -123,7 +132,7 @@ class Vehicle:
         if not self.can_see_vehicle(cv2x_vehicle) or not self.can_see_vehicle(non_cv2x_vehicle):
             return 0.5
 
-        non_cv2x_vehicle_corners = Vehicle.get_vehicle_boundaries(non_cv2x_vehicle)
+        non_cv2x_vehicle_corners = non_cv2x_vehicle.get_vehicle_boundaries()
 
         lines = [list(cv2x_vehicle.pos) + non_cv2x_vehicle_corners[0].tolist(),
                  list(cv2x_vehicle.pos) + non_cv2x_vehicle_corners[1].tolist(),
@@ -133,16 +142,16 @@ class Vehicle:
         for cv2x_to_non_cv2x_corner_line in lines:
             # list of objects occluding cv2x and noncv2x
             for occlusion_vehicle in remaining_perceived_non_cv2x_vehicles:
-                occlusion_vehicle_corners = [v.tolist() for v in Vehicle.get_vehicle_boundaries(occlusion_vehicle)]
+                occlusion_vehicle_corners = [v.tolist() for v in occlusion_vehicle.get_vehicle_boundaries()]
                 if does_line_intersect_polygon(cv2x_to_non_cv2x_corner_line, occlusion_vehicle_corners):
                     # If I can see any of these objects,
                     # then return 0,
                     # if any of these objects is occluded return 0.5
-                    line_self_to_object_interest = [self.pos, occlusion_vehicle.pos]
+                    line_self_to_object_interest = list(self.pos) + list(occlusion_vehicle.pos)
                     for occlusion_vehicle_2 in remaining_perceived_non_cv2x_vehicles:
                         if occlusion_vehicle_2.vehicle_id != occlusion_vehicle.vehicle_id:
                             occlusion_vehicle2_corners = [v.tolist() for v in
-                                                         Vehicle.get_vehicle_boundaries(occlusion_vehicle_2)]
+                                                         occlusion_vehicle_2.get_vehicle_boundaries()]
                             if does_line_intersect_polygon(line_self_to_object_interest, occlusion_vehicle2_corners):
                                 return 0.5
                             else:
@@ -155,20 +164,20 @@ class Vehicle:
             for point in interpolations:
                 # self can see these points, but need to validate if an occlusion occurs.
                 for occlusion_vehicle in remaining_perceived_non_cv2x_vehicles:
-                    line_self_to_interpolated_point = [self.pos, point]
-                    occlusion_vehicle_corners = [v.tolist() for v in Vehicle.get_vehicle_boundaries(occlusion_vehicle)]
+                    line_self_to_interpolated_point = list(self.pos) + point.tolist()
+                    occlusion_vehicle_corners = [v.tolist() for v in occlusion_vehicle.get_vehicle_boundaries()]
 
                     if does_line_intersect_polygon(line_self_to_interpolated_point, occlusion_vehicle_corners):
                         return 0.5
 
                     # can be speeded up by reducing the buildings to only those in the viewing_range and FoV of self
                     for building in buildings:
-                        if does_line_intersect_polygon(line_self_to_interpolated_point, building):
+                        if does_line_intersect_polygon(line_self_to_interpolated_point, building.shape):
                             return 0.5
         return 1
 
     def building_in_sight(self, building, destination_vehicle):
-        destination_vehicle_corners = Vehicle.get_vehicle_boundaries(destination_vehicle)
+        destination_vehicle_corners = destination_vehicle.get_vehicle_boundaries()
 
         # Get a line from my pos to the 4 corners of the destination
         # check if any of these passes through the box of a car, if at least 3 corners are invisible,
