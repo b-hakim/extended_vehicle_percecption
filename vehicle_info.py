@@ -13,8 +13,8 @@ class Vehicle:
                           traci.vehicle.getHeight(vehicle_id))
 
         self.vehicle_id = vehicle_id
-        self.perception_range = hyper_params["view_range"]
-        self.perception_angle = hyper_params["fov"]
+        self.viewing_range = hyper_params["view_range"]
+        self.fov = hyper_params["fov"]
         self.__previous_edge_road = traci.vehicle.getRoute(self.vehicle_id)[0]
 
     @property
@@ -30,12 +30,23 @@ class Vehicle:
         return traci.vehicle.getAcceleration(self.vehicle_id)
 
     @property
-    def heading_unit_vector(self):
+    def orientation_angle_degree(self):
         vehicle_angle_degree = traci.vehicle.getAngle(self.vehicle_id)
-        heading_unit_vector = [np.cos(vehicle_angle_degree * np.pi / 180),
-                                    np.sin(vehicle_angle_degree * np.pi / 180)]
-        heading_unit_vector = heading_unit_vector / np.sqrt(np.dot(heading_unit_vector, heading_unit_vector))
-        return heading_unit_vector
+        # - angle for making it ccw
+        # +90 for the desired angle is based on the x axis while traci has angle based on y axis
+        vehicle_angle_degree = (- vehicle_angle_degree + 90) %360
+
+        # if vehicle_angle_degree < 0:
+        #     vehicle_angle_degree += 360
+
+        return vehicle_angle_degree
+
+    @property
+    def heading_unit_vector(self):
+        heading_unit_vector = [np.cos(self.orientation_angle_degree * np.pi / 180),
+                               np.sin(self.orientation_angle_degree * np.pi / 180)]
+        # heading_unit_vector = heading_unit_vector / np.sqrt(np.dot(heading_unit_vector, heading_unit_vector))
+        return np.array(heading_unit_vector)
 
     def get_future_route(self):
         full_route = traci.vehicle.getRoute(self.vehicle_id)
@@ -75,19 +86,32 @@ class Vehicle:
 
     def get_vehicle_boundaries(self):
         # calculate 4 vectors based on v's heading to get vectors to the 4 corners
-        def rotate_vector(vec, ceta_degree):
+
+        def rotate_vector(vec, ceta_degree, pivot):
+            vec -= pivot.reshape((2, 1))
             ceta_rad = np.deg2rad(ceta_degree)
             rot_mat = np.array([[np.cos(ceta_rad), -np.sin(ceta_rad)],
                                 [np.sin(ceta_rad), np.cos(ceta_rad)]])
             rotated_vector = np.dot(rot_mat, vec)
+            rotated_vector += pivot.reshape((2, 1))
             return rotated_vector
 
-        magnitude = np.linalg.norm([self.dimension[0] / 2, self.dimension[1] / 2])
-        corners = [magnitude * rotate_vector(self.heading_unit_vector, 45) + self.pos,
-                   magnitude * rotate_vector(self.heading_unit_vector, 135) + self.pos,
-                   magnitude * rotate_vector(self.heading_unit_vector, -135) + self.pos,
-                   magnitude * rotate_vector(self.heading_unit_vector, -45) + self.pos]
+        corners = np.array([
+            [self.pos[0] - self.dimension[0] / 2, self.pos[1]],
+            [self.pos[0] - self.dimension[0] / 2, self.pos[1] - self.dimension[1]],
+            [self.pos[0] + self.dimension[0] / 2, self.pos[1] - self.dimension[1]],
+            [self.pos[0] + self.dimension[0] / 2, self.pos[1]],
+        ])
 
+        # center = corners.mean(axis=0)
+        ang = self.orientation_angle_degree - 90
+        corners = rotate_vector(corners.transpose(), ang, np.array(self.pos)).transpose()
+        # np.array([
+        #     rotate_vector(corners[0], ang),
+        #     rotate_vector(corners[1], ang),
+        #     rotate_vector(corners[2], ang),
+        #     rotate_vector(corners[3], ang),
+        #     ])
         return corners
 
     def can_see_vehicle(self, non_cv2x_vehicle):
@@ -101,7 +125,7 @@ class Vehicle:
             euclidean_distance(self.pos, non_cv2x_vehicle_corners[3])
         ]
 
-        if np.array([d > self.perception_range for d in dists]).all():
+        if np.array([d > self.viewing_range for d in dists]).all():
             return False
 
         # Second check that the vehicle is in the given FoV
@@ -110,7 +134,7 @@ class Vehicle:
                   abs(angle_between_two_vectors(self.heading_unit_vector, get_vector(self.pos, non_cv2x_vehicle_corners[2]))),
                   abs(angle_between_two_vectors(self.heading_unit_vector, get_vector(self.pos, non_cv2x_vehicle_corners[3])))]
 
-        return np.array([angle <= self.perception_angle/2 for angle in angles]).any()
+        return np.array([angle <= self.fov / 2 for angle in angles]).any()
 
     def get_probability_cv2x_sees_non_cv2x(self, cv2x_vehicle, non_cv2x_vehicle,
                                            remaining_perceived_non_cv2x_vehicles, buildings):
