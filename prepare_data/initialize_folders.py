@@ -76,10 +76,10 @@ for i in range(n):
 
     initialize_maps_thread = myThread(src_files, dirnames)
     initialize_maps_thread.start()
-
+    list_threads.append(initialize_maps_thread)
 
 for i in range(n):
-    initialize_maps_thread.join()
+    list_threads[i].join()
 
 print("File Preparation Done! Happy Simulations : )")
 
