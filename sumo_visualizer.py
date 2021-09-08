@@ -22,11 +22,12 @@ class Utils:
     #     return poly
 
     @staticmethod
-    def sumo2opencv_coord(poly, shape, scale=10):
+    def sumo2opencv_coord(poly, shape, scale):
         poly = Utils.reverse_y_axis(poly, shape[0]/scale)
         # poly = Utils.adjust_padding(poly, padding)
         poly *= scale
         return poly.astype(int)
+
 
 class SumoVisualizer:
     '''
@@ -46,12 +47,13 @@ class SumoVisualizer:
 
         xmax, ymax = polys[:, 0].max(), polys[:, 1].max()
         # self.padding = 100
-        self.img = np.ones((10*(int(ymax+1)), 10*(int(xmax+1)), 3), dtype=np.uint8) * 255
+        self.scale = 10
+        self.img = np.ones((self.scale*(int(ymax+1)), self.scale*(int(xmax+1)), 3), dtype=np.uint8) * 255
         buildings.sort(key=lambda x:x.layer)
 
         for building in buildings:
             poly = np.array(building.shape).reshape(1, -1, 2)
-            poly = Utils.sumo2opencv_coord(poly, self.img.shape)
+            poly = Utils.sumo2opencv_coord(poly, self.img.shape, self.scale)
 
             if building.fill == '1':
                 cv2.fillPoly(self.img, poly, (building.color.b, building.color.g, building.color.r))
@@ -67,12 +69,12 @@ class SumoVisualizer:
         for vehicle in vehicles:
             self.draw_vehicle_body(vehicle)
 
-            pos = Utils.sumo2opencv_coord(np.array(vehicle.pos), self.img.shape)
+            pos = Utils.sumo2opencv_coord(np.array(vehicle.pos), self.img.shape, self.scale)
             cv2.circle(self.img, tuple(np.array(pos).astype(int).tolist()), 1, (0, 255, 0), -1)
 
             magnitude = np.linalg.norm([vehicle.dimension[0] / 2, vehicle.dimension[1] / 2])
             heading_point = magnitude * vehicle.heading_unit_vector + vehicle.pos
-            heading_point = Utils.sumo2opencv_coord(np.array(heading_point), self.img.shape)
+            heading_point = Utils.sumo2opencv_coord(np.array(heading_point), self.img.shape, self.scale)
             line = tuple(np.array(pos).astype(int).tolist()), tuple(heading_point.astype(int).tolist())
             cv2.line(self.img, line[0], line[1], (0, 255, 0))
 
@@ -91,15 +93,15 @@ class SumoVisualizer:
         right_pt = vehicle.viewing_range * right_limit + np.array(vehicle.pos)
         left_pt = vehicle.viewing_range * left_limit + np.array(vehicle.pos)
 
-        pos = Utils.sumo2opencv_coord(np.array(vehicle.pos), self.img.shape)
-        right_pt = Utils.sumo2opencv_coord(right_pt, self.img.shape)
-        left_pt = Utils.sumo2opencv_coord(left_pt, self.img.shape)
+        pos = Utils.sumo2opencv_coord(np.array(vehicle.pos), self.img.shape, self.scale)
+        right_pt = Utils.sumo2opencv_coord(right_pt, self.img.shape, self.scale)
+        left_pt = Utils.sumo2opencv_coord(left_pt, self.img.shape, self.scale)
 
         cv2.line(self.img, tuple(pos.astype(int)), tuple(right_pt.astype(int)), (0, 0, 0))
         cv2.line(self.img, tuple(pos.astype(int)), tuple(left_pt.astype(int)), (0, 0, 0))
 
         center = (int(pos[0]), int(pos[1]))
-        axes = (vehicle.viewing_range*10, vehicle.viewing_range*10)
+        axes = (vehicle.viewing_range*self.scale, vehicle.viewing_range*self.scale)
 
         # Make angles CW for ellipse
         startAngle = 360 - a1
@@ -114,14 +116,13 @@ class SumoVisualizer:
 
         cv2.ellipse(self.img, center, axes, ang, startAngle, endAngle, (0,0,0))
 
-
     def save_img(self, img_path="./map.png"):
         cv2.imwrite(img_path, self.img)
 
     def draw_vehicle_body(self, vehicle, color=(128, 128, 127)):
         poly = vehicle.get_vehicle_boundaries()
         poly = poly.reshape(1, -1, 2)
-        poly = Utils.sumo2opencv_coord(poly, self.img.shape)
+        poly = Utils.sumo2opencv_coord(poly, self.img.shape, self.scale)
         cv2.fillPoly(self.img, poly, color)
 
 
