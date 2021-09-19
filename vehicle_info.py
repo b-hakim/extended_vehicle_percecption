@@ -48,7 +48,16 @@ class Vehicle:
         # heading_unit_vector = heading_unit_vector / np.sqrt(np.dot(heading_unit_vector, heading_unit_vector))
         return np.array(heading_unit_vector)
 
-    def get_future_route(self):
+    @staticmethod
+    def get_route_travel_time(route, net):
+        d = 0
+
+        for edge_id in route:
+            d += net.getEdge(edge_id).getLength()
+
+        return d
+
+    def get_future_route(self, net):
         full_route = traci.vehicle.getRoute(self.vehicle_id)
         current_road = traci.vehicle.getRoadID(self.vehicle_id)
 
@@ -56,7 +65,18 @@ class Vehicle:
             current_road = self.__previous_edge_road
 
         start = full_route.index(current_road)
-        return full_route[start:]
+        future_route = full_route[start:]
+
+        ## make sure this road is reacheable within 5 sec at most for 40km/h
+        trimmed_future_route = []
+
+        for edge in future_route:
+            if Vehicle.get_route_travel_time(trimmed_future_route + [edge], net) < 5:
+                trimmed_future_route.append(edge)
+            else:
+                break
+
+        return trimmed_future_route
 
     def update_latest_edge_road(self, new_road_id):
         if new_road_id[0] != ":":

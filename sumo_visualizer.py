@@ -1,7 +1,6 @@
 from typing import List
 
 import cv2
-import sumolib
 import numpy as np
 
 from vehicle_info import Vehicle
@@ -37,6 +36,7 @@ class SumoVisualizer:
     4- Draw Vehicles as poly based on its boundaries
     '''
     def __init__(self, paths):
+        import sumolib
         net = sumolib.net.readNet(paths['scenario_path'])
         buildings = sumolib.shapes.polygon.read(paths['scenario_polys'])
         edges = net.getEdges()
@@ -47,7 +47,7 @@ class SumoVisualizer:
 
         xmax, ymax = polys[:, 0].max(), polys[:, 1].max()
         # self.padding = 100
-        self.scale = 10
+        self.scale = 1
         self.img = np.ones((self.scale*(int(ymax+1)), self.scale*(int(xmax+1)), 3), dtype=np.uint8) * 255
         buildings.sort(key=lambda x:x.layer)
 
