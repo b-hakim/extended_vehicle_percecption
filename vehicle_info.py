@@ -49,13 +49,26 @@ class Vehicle:
         return np.array(heading_unit_vector)
 
     @staticmethod
+    def dist_between_edges(first_edge, next_edge):
+        r = traci.simulation.findRoute(first_edge._id, next_edge._id)
+        return r.length - first_edge.getLength() - next_edge.getLength()
+
+    @staticmethod
     def get_route_travel_time(route, net):
         d = 0
+        prev_edge = None
 
         for edge_id in route:
-            d += net.getEdge(edge_id).getLength()
+            curr_edge = net.getEdge(edge_id)
+            d += curr_edge.getLength()
 
-        return d
+            if prev_edge is not None:
+                junction_dist = Vehicle.dist_between_edges(prev_edge, curr_edge)
+                d += junction_dist
+
+            prev_edge = curr_edge
+
+        return 3600 * (d/40000)
 
     def get_future_route(self, net):
         full_route = traci.vehicle.getRoute(self.vehicle_id)
@@ -71,10 +84,15 @@ class Vehicle:
         trimmed_future_route = []
 
         for edge in future_route:
-            if Vehicle.get_route_travel_time(trimmed_future_route + [edge], net) < 5:
+            if Vehicle.get_route_travel_time(trimmed_future_route + [edge], net) <= 5:
                 trimmed_future_route.append(edge)
             else:
                 break
+
+        current_road = traci.vehicle.getRoadID(self.vehicle_id)
+
+        if current_road[0] == ":":
+            trimmed_future_route = [current_road] + trimmed_future_route[1:]
 
         return trimmed_future_route
 

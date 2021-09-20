@@ -70,3 +70,32 @@ def euclidean_distance(pt1, pt2):
         pt2 = np.array(pt2)
 
     return np.linalg.norm(pt1-pt2)
+
+
+def get_slope_y_intercept(line):
+    (x1, y1), (x2, y2) = line
+
+    if abs(x2 - x1) < 0.0001:
+        slope = None
+        c = x1
+    else:
+        if abs(y2 - y1) < 0.0001:
+            y2 = y1
+        slope = (y2 - y1) / (x2 - x1)
+        c = y1 - slope * x1
+
+    return slope, c
+
+
+def in_and_near_segment(pt, line):
+    m, inter = get_slope_y_intercept(line)
+
+    if m is None:
+        near_line = abs(pt[0] - inter) < 0.5
+    else:
+        near_line = abs(pt[1] - m * pt[0] - inter) < 0.5
+
+    in_segment = (line[0][0] - 0.5 < pt[0] < line[1][0] + 0.5 and line[0][1] - 0.5 < pt[1] < line[1][1] + 0.5) \
+                 or (line[1][0] - 0.5 < pt[0] < line[0][0] + 0.5 and line[1][1] - 0.5 < pt[1] < line[0][1] + 0.5)
+
+    return near_line and in_segment
