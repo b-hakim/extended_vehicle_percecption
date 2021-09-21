@@ -26,6 +26,40 @@ def distance_prev_curr_edge(prev_edge_points, curr_edge_points):
                    euclidean_distance(prev_edge_points[-1], curr_edge_points[0]),
                    euclidean_distance(prev_edge_points[-1], curr_edge_points[-1])])
 
+
+def in_and_near_edge(cv2x_veh_pos, edge_segments):
+    for i in range(1, len(edge_segments)):
+        line = edge_segments[i-1], edge_segments[i]
+
+        if in_and_near_segment(cv2x_veh_pos, line):
+            return True
+
+    return False
+
+
+def get_dist_from_to(pos_from, pos_to, edge_segments):
+    dist = 0
+    first_pt_found = False
+
+    for i in range(1, len(edge_segments)):
+        line = edge_segments[i-1], edge_segments[i]
+
+        if not first_pt_found:
+            if in_and_near_segment(pos_from, line):
+                first_pt_found = True
+
+                if in_and_near_segment(pos_to, line):
+                    return euclidean_distance(pos_from, pos_to)
+                else:
+                    dist += euclidean_distance(pos_from, line[1])
+        else:
+            if in_and_near_segment(pos_to, line):
+                dist += euclidean_distance(line[0], pos_to)
+                return dist
+
+    assert False
+
+
 class Simulation:
     def __init__(self, hyper_params, id):
         self.hyper_params = hyper_params
@@ -141,29 +175,32 @@ class Simulation:
             if destination[0] != ":":
                 last_edge = self.net.getEdge(route.edges[-1])
 
-                if in_and_near_segment(cv2x_veh_pos, last_edge.getShape()):
+                if in_and_near_edge(cv2x_veh_pos, last_edge.getShape()):
                     if destination == list_destination_edges[0]:
                         route_length = route_length - last_edge._length
 
                         if route.edges == 1:
-                            assert in_and_near_segment(noncv2x_veh_pos, last_edge.getShape())
-                            route_length = euclidean_distance(noncv2x_veh_pos, cv2x_veh_pos)
+                            assert in_and_near_edge(noncv2x_veh_pos, last_edge.getShape())
+                            route_length += get_dist_from_to(noncv2x_veh_pos, cv2x_veh_pos, last_edge.getShape())
                         else:
                             # need to make sure that the [0] is the entrance of this road
-                            route_length += euclidean_distance(last_edge.getShape()[0], cv2x_veh_pos)
+                            route_length += get_dist_from_to(last_edge.getShape()[0], cv2x_veh_pos, last_edge.getShape())
+                            # route_length += euclidean_distance(last_edge.getShape()[0], cv2x_veh_pos)
 
             # remove the length for the first edge and add from src_vehicle position to the end of the first edge
             if source[0] != ":":
                 first_edge = self.net.getEdge(route.edges[0])
 
-                if in_and_near_segment(noncv2x_veh_pos, first_edge.getShape()):
+                if in_and_near_edge(noncv2x_veh_pos, first_edge.getShape()):
                     route_length = route_length - first_edge._length
 
                     if route.edges == 1:
-                        assert in_and_near_segment(cv2x_veh_pos, first_edge.getShape())
-                        route_length = euclidean_distance(noncv2x_veh_pos, cv2x_veh_pos)
+                        assert in_and_near_edge(cv2x_veh_pos, first_edge.getShape())
+                        route_length += get_dist_from_to(noncv2x_veh_pos, cv2x_veh_pos, first_edge.getShape())
+                        # route_length += euclidean_distance(noncv2x_veh_pos, cv2x_veh_pos)
                     else:
-                        route_length += euclidean_distance(noncv2x_veh_pos, first_edge.getShape()[1])
+                        route_length += get_dist_from_to(noncv2x_veh_pos, first_edge.getShape()[-1], first_edge.getShape())
+                        # route_length += euclidean_distance(noncv2x_veh_pos, first_edge.getShape()[1])
 
             if route_length < min_distance:
                 min_distance = route.length
@@ -235,7 +272,7 @@ class Simulation:
 
         return h_n
 
-    def run(self):
+    def run(self, repeat_experiment=False):
         import traci
 
         sumoBinary = "/usr/bin/sumo"
@@ -247,13 +284,14 @@ class Simulation:
 
         repeat_path = os.path.join(os.path.dirname(self.hyper_params['scenario_path']), "repeat.txt")
         ########################################## Load Rand State ################################################
-        with open(repeat_path) as fr:
-            np_rand_state = (fr.readline().strip(),np.array(literal_eval(fr.readline().strip())), int(fr.readline().strip()),
-                             int(fr.readline().strip()), float(fr.readline().strip()))
-            py_rand_state = literal_eval(fr.readline())
+        if repeat_experiment:
+            with open(repeat_path) as fr:
+                np_rand_state = (fr.readline().strip(),np.array(literal_eval(fr.readline().strip())), int(fr.readline().strip()),
+                                 int(fr.readline().strip()), float(fr.readline().strip()))
+                py_rand_state = literal_eval(fr.readline())
 
-        np.random.set_state(np_rand_state)
-        random.setstate(py_rand_state)
+            np.random.set_state(np_rand_state)
+            random.setstate(py_rand_state)
         #######################################################################################################
         # Save Rand State
         with open(repeat_path, 'w') as fw:
@@ -376,7 +414,11 @@ class Simulation:
                             self.hyper_params['num_RBs'], self.hyper_params['message_size'])
 
             save_path = os.path.join(os.path.dirname(self.hyper_params['scenario_path']),
-                                     "results_"+str(self.hyper_params['num_RBs'])+"_"+str(self.hyper_params['tot_num_vehicles'])+".txt")
+                                     "results_" + str(self.hyper_params['cv2x_N'])
+                                     + "_" + str(self.hyper_params['fov'])
+                                     + "_" + str(self.hyper_params["view_range"])
+                                     + "_" + str(self.hyper_params["num_RBs"])
+                                     + "_" + str(self.hyper_params["tot_num_vehicles"])+".txt")
 
             sent, unsent = solver.find_optimal_assignment(save_path)
 
@@ -406,10 +448,10 @@ if __name__ == '__main__':
     hyper_params["cv2x_N"] = 0.25
     hyper_params["fov"] = 120
     hyper_params["view_range"] = 75
-    hyper_params["base_station_position"] = 1600, 600
-    hyper_params["base_station_position"] = (2034, 1712)
-    hyper_params["num_RBs"] = 10
+    # hyper_params["base_station_position"] = 1600, 600
+    hyper_params["base_station_position"] = (650, 500)
+    hyper_params["num_RBs"] = 30
     hyper_params['message_size'] = 2000*8
-    hyper_params['tot_num_vehicles'] = 100
+    hyper_params['tot_num_vehicles'] = 150
     sim = Simulation(hyper_params, "4_0")
     sim.run()

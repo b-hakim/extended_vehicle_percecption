@@ -38,7 +38,7 @@ class RunSimulationThread(multiprocessing.Process):
             with open(os.path.join(traffic,"basestation_pos.txt"), 'r') as fr:
                 hyper_params["base_station_position"] = literal_eval(fr.readline())
 
-            print(f"Simulation Toronto_{self.sim_id.split('_')[0]} - {self.sim_id.split('_')[1]} launched")
+            print(f"Simulation Toronto_{str(self.sim_id)}_{os.path.basename(traffic)} launched")
             sim = Simulation(hyper_params, str(self.sim_id)+"_"+os.path.basename(traffic))
             sim.run()
 
@@ -62,7 +62,7 @@ if __name__ == '__main__':
         #     end = len(maps)
         print(maps[i])
         simulation_thread = RunSimulationThread(maps[i], cv2x_percentage=0.25, fov=120, view_range=75,
-                                                num_RBs=10, tot_num_vehicles=120, id=i)
+                                                num_RBs=20, tot_num_vehicles=150, id=i)
         simulation_thread.start()
         list_threads.append(simulation_thread)
 

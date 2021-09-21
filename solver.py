@@ -96,50 +96,50 @@ class Solver:
 
         if save_path is not None:
             with open(save_path, 'w') as fw:
-                fw.write('Number of variables =' + str(solver.NumVariables())
-                         + "\nNumber of constraints =" + str(solver.NumConstraints())
-                         + "\nSum Requests scores =" + str(sum_scores)
-                         + "\nLength Requests =" + str(len(list(self.s_n.values())))
-                         + "\nTime to solve:" + str (end - start) + "\n\n")
+                fw.write('Number of variables = ' + str(solver.NumVariables())
+                         + "\nNumber of constraints = " + str(solver.NumConstraints())
+                         + "\nSum Requests scores = " + str(sum_scores)
+                         + "\nLength Requests = " + str(len(list(self.s_n.values())))
+                         + "\nTime to solve: " + str (end - start) + "\n\n")
 
-        if status == pywraplp.Solver.OPTIMAL:
-            with open(save_path, 'a') as fw:
-                fw.write('Solution:'
-                     + '\nObjective value =' + str(solver.Objective().Value())
-                     + "\n\nRBs" + str(self.K) + "\n\n")
+            if status == pywraplp.Solver.OPTIMAL:
+                with open(save_path, 'a') as fw:
+                    fw.write('Solution:'
+                         + '\nObjective value = ' + str(solver.Objective().Value())
+                         + "\n\nRBs" + str(self.K) + "\n\n")
 
-                s = ""
-                for n in alpha_n.keys():
-                    if s!="":
-                        s+= " + "
-                    s+= str(np.round(self.s_n[n], 2)) + "*" + str(abs(alpha_n[n].solution_value()))
-
-                fw.write('alpha: \n' + s + "\n\n")
-
-                s = ""
-                for n in c_n_ks.keys():
-                    s += str(np.round(c_n_ks[n], 2))
-                    s += "\n"
-
-                fw.write('c_n_k: \n' + s + "\n\n")
-
-                fw.write('eita:\n')
-
-                for n in eita_n_k.keys():
                     s = ""
-                    for k in range(self.K):
-                        s += str(abs(eita_n_k[n][k].solution_value())) + " "
-                    fw.write(s + "\n")
+                    for n in alpha_n.keys():
+                        if s!="":
+                            s+= " + "
+                        s+= str(np.round(self.s_n[n], 2)) + "*" + str(abs(alpha_n[n].solution_value()))
 
-        else:
+                    fw.write('alpha: \n' + s + "\n\n")
+
+                    s = ""
+                    for n in c_n_ks.keys():
+                        s += str(c_n_ks[n])
+                        s += "\n"
+
+                    fw.write('c_n_k: \n' + s + "\n\n")
+
+                    fw.write('eita:\n')
+
+                    for n in eita_n_k.keys():
+                        s = "["
+                        for k in range(self.K):
+                            s += str(abs(eita_n_k[n][k].solution_value())) + ", "
+                        fw.write(s + "]\n")
+
+            else:
+                with open(save_path, 'a') as fw:
+                    fw.write('The problem does not have an optimal solution.\n')
+
             with open(save_path, 'a') as fw:
-                fw.write('The problem does not have an optimal solution.\n')
-
-        with open(save_path, 'a') as fw:
-            fw.writelines('\nAdvanced usage:')
-            fw.writelines(f'\nProblem solved in {solver.wall_time()} milliseconds' )
-            fw.writelines(f'\nProblem solved in {solver.iterations()} iterations')
-            fw.writelines(f'\nProblem solved in {solver.nodes()} branch-and-bound nodes\n\n')
+                fw.writelines('\nAdvanced usage:')
+                fw.writelines(f'\nProblem solved in {solver.wall_time()} milliseconds' )
+                fw.writelines(f'\nProblem solved in {solver.iterations()} iterations')
+                fw.writelines(f'\nProblem solved in {solver.nodes()} branch-and-bound nodes\n\n')
 
         sent = np.count_nonzero([alpha_n[n].solution_value() for n in alpha_n.keys()])
         not_sent = len(list(alpha_n.keys())) - sent
