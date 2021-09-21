@@ -43,7 +43,7 @@ class RunSimulationThread(multiprocessing.Process):
             sim.run()
 
 
-if __name__ == '__main__':
+def run_simulation(cv2x_percentage, fov, view_range, num_RBs, tot_num_vehicles):
     n_threads = 10
     path = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto/"
     maps = os.listdir(path)
@@ -68,5 +68,10 @@ if __name__ == '__main__':
 
     for i in range(n):
         list_threads[i].join()
+
+
+if __name__ == '__main__':
+    # run_simulation(cv2x_percentage=0.25, fov=120, view_range=75, num_RBs=20, tot_num_vehicles=150)
+    run_simulation(cv2x_percentage=0.5, fov=120, view_range=75, num_RBs=20, tot_num_vehicles=150)
 
     print("All Simulations are done! Happy Integrating 9: )")
