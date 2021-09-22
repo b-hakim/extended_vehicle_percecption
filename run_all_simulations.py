@@ -34,6 +34,7 @@ class RunSimulationThread(multiprocessing.Process):
             hyper_params["num_RBs"] = self.num_RBs
             hyper_params['message_size'] = 2000 * 8
             hyper_params['tot_num_vehicles'] = self.tot_num_vehicles
+            hyper_params['time_threshold'] = 10
 
             with open(os.path.join(traffic,"basestation_pos.txt"), 'r') as fr:
                 hyper_params["base_station_position"] = literal_eval(fr.readline())
@@ -61,8 +62,8 @@ def run_simulation(cv2x_percentage, fov, view_range, num_RBs, tot_num_vehicles):
         # if i == n-1:
         #     end = len(maps)
         print(maps[i])
-        simulation_thread = RunSimulationThread(maps[i], cv2x_percentage=0.25, fov=120, view_range=75,
-                                                num_RBs=20, tot_num_vehicles=150, id=i)
+        simulation_thread = RunSimulationThread(maps[i], cv2x_percentage=cv2x_percentage, fov=fov, view_range=view_range,
+                                                num_RBs=num_RBs, tot_num_vehicles=tot_num_vehicles, id=i)
         simulation_thread.start()
         list_threads.append(simulation_thread)
 
@@ -71,7 +72,10 @@ def run_simulation(cv2x_percentage, fov, view_range, num_RBs, tot_num_vehicles):
 
 
 if __name__ == '__main__':
-    # run_simulation(cv2x_percentage=0.25, fov=120, view_range=75, num_RBs=20, tot_num_vehicles=150)
-    run_simulation(cv2x_percentage=0.5, fov=120, view_range=75, num_RBs=20, tot_num_vehicles=150)
+    run_simulation(cv2x_percentage=0.35, fov=120, view_range=75, num_RBs=20, tot_num_vehicles=150)
+    print("first one is done")
+    run_simulation(cv2x_percentage=0.45, fov=120, view_range=75, num_RBs=20, tot_num_vehicles=150)
+    run_simulation(cv2x_percentage=0.55, fov=120, view_range=75, num_RBs=20, tot_num_vehicles=150)
+    run_simulation(cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=20, tot_num_vehicles=150)
 
     print("All Simulations are done! Happy Integrating 9: )")

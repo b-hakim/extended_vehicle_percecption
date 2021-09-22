@@ -7,7 +7,7 @@ import numpy as np
 import sumolib
 import traci
 
-from math_utils import euclidean_distance, in_and_near_segment
+from math_utils import euclidean_distance, in_and_near_edge, get_dist_from_to, in_segment
 from solver import Solver
 from sumo_visualizer import SumoVisualizer
 from vehicle_info import Vehicle
@@ -25,39 +25,6 @@ def distance_prev_curr_edge(prev_edge_points, curr_edge_points):
                    euclidean_distance(prev_edge_points[0], curr_edge_points[-1]),
                    euclidean_distance(prev_edge_points[-1], curr_edge_points[0]),
                    euclidean_distance(prev_edge_points[-1], curr_edge_points[-1])])
-
-
-def in_and_near_edge(cv2x_veh_pos, edge_segments):
-    for i in range(1, len(edge_segments)):
-        line = edge_segments[i-1], edge_segments[i]
-
-        if in_and_near_segment(cv2x_veh_pos, line):
-            return True
-
-    return False
-
-
-def get_dist_from_to(pos_from, pos_to, edge_segments):
-    dist = 0
-    first_pt_found = False
-
-    for i in range(1, len(edge_segments)):
-        line = edge_segments[i-1], edge_segments[i]
-
-        if not first_pt_found:
-            if in_and_near_segment(pos_from, line):
-                first_pt_found = True
-
-                if in_and_near_segment(pos_to, line):
-                    return euclidean_distance(pos_from, pos_to)
-                else:
-                    dist += euclidean_distance(pos_from, line[1])
-        else:
-            if in_and_near_segment(pos_to, line):
-                dist += euclidean_distance(line[0], pos_to)
-                return dist
-
-    assert False
 
 
 class Simulation:
@@ -102,20 +69,23 @@ class Simulation:
 
         return cv2x_vehicles_perception
 
-    def get_interest_cv2x_in_vehicle(self, cv2x_vehicle, non_cv2x_vehicle, p):
+    def get_interest_cv2x_in_vehicle(self, cv2x_vehicle:Vehicle, non_cv2x_vehicle:Vehicle, p:float, time_threshold=10):
         # Traj = the trajectory of the cv2x vehicle.
         # Assume max velocity of cv2x = 40 m/s. Therefore, Traj for 5 sec has a max of 200m travel distance
-
         # Get trajectory from="noncv2x_vehicle" to differnet segment of "Traj".
-        # Let noncv2x_vehicle speed = max(its own speed, 40 m/s),
+        # Let noncv2x_vehicle speed = 40 m/s,
         #           calculate the time taken to reach different segemnts of "Traj"
         #           ignore any time above 5 sec.
-        #           minT = minimum time taken to reach one of the Traj segment
+        #           minT = minimum time taken for the noncv2x to reach one of the Traj segment + cv2x to reach that pt
         #           p = probability the cv2x seeing the non_cv2x
         #           interest = (1/minT) * (p)
-        cv2x_future_edges = cv2x_vehicle.get_future_route(self.net)
+        cv2x_future_edges = cv2x_vehicle.get_future_route(self.net, time_threshold)
+        print(cv2x_vehicle.vehicle_id,non_cv2x_vehicle.vehicle_id)
+
         min_dist, min_dist_edge = self.get_shortest_route(cv2x_vehicle.pos, non_cv2x_vehicle.pos,
                                                           non_cv2x_vehicle.get_current_road(), cv2x_future_edges)
+        # min_dist, min_dist_edge = self.get_shortest_route(cv2x_vehicle.center_pos, non_cv2x_vehicle.center_pos,
+        #                                                   non_cv2x_vehicle.get_current_road(), cv2x_future_edges)
 
         # no edge
         if min_dist_edge is None:
@@ -123,14 +93,14 @@ class Simulation:
 
         t = 3600 * ((min_dist+0.0000001)/40000) # get time in seconds for a speed of 40km/h
 
-        if t > 5:
+        if t > time_threshold:
             return 0
         else:
             return p/t
 
     def calculate_scores_per_cv2x(self, cv2x_perceived_non_cv2x_vehicles,
                                   cv2x_vehicles, non_cv2x_vehicles,
-                                  buildings):
+                                  buildings, time_threshold):
         cv2x_ids = list(cv2x_vehicles.keys())
         scores_per_cv2x = {}
 
@@ -153,30 +123,45 @@ class Simulation:
                         scores.append((receiver_cv2x_id,0))
                     else:
                         scores.append((receiver_cv2x_id,
-                                       self.get_interest_cv2x_in_vehicle(receiver_cv2x_vehicle, perceived_non_cv2x_vehicle, p)))
+                                       self.get_interest_cv2x_in_vehicle(receiver_cv2x_vehicle, perceived_non_cv2x_vehicle, p, time_threshold)))
 
             scores_per_cv2x[sender_cv2x_id] = scores
         return scores_per_cv2x
 
-    def get_shortest_route(self, cv2x_veh_pos, noncv2x_veh_pos, source, list_destination_edges):
+    def get_shortest_route(self, cv2x_veh_pos, noncv2x_veh_pos, non_cv2x_edge, list_destination_edges):
         min_distance = 100000000000
         min_dist_destination = None
 
-        for destination in list_destination_edges:
-            route = traci.simulation.findRoute(source, destination)
+        for destination_edge in list_destination_edges:
+            route = traci.simulation.findRoute(non_cv2x_edge, destination_edge)
 
             if len(route.edges) == 0:
                 continue
 
-            route_length = route.length
+            cv2x_dist_to_segment = traci.simulation.findRoute(list_destination_edges[0], destination_edge).length
+
+            if list_destination_edges[0][0] != ":":
+                first_edge = self.net.getEdge(list_destination_edges[0])
+                if not in_and_near_edge(cv2x_veh_pos, first_edge.getShape()):
+                    # this means there is an error in the start position of the edge,
+                    # so the new length is the edge length + veh_pos to start
+                    # cv2x_dist_to_segment += euclidean_distance(cv2x_veh_pos, first_edge.getShape()[0])
+
+                    # Edit: do nothing and just assume the vehicle is at the begining
+                    pass
+                else:
+                    cv2x_dist_to_segment -= first_edge._length
+                    cv2x_dist_to_segment += get_dist_from_to(cv2x_veh_pos, first_edge.getShape()[-1], first_edge.getShape())
+
+            route_length = route.length + cv2x_dist_to_segment
 
             # if the destination is the first edge
             # remove the length for the last edge and add length between first point of last edge and cv2x vehicle pos
-            if destination[0] != ":":
+            if destination_edge[0] != ":":
                 last_edge = self.net.getEdge(route.edges[-1])
 
                 if in_and_near_edge(cv2x_veh_pos, last_edge.getShape()):
-                    if destination == list_destination_edges[0]:
+                    if destination_edge == list_destination_edges[0]:
                         route_length = route_length - last_edge._length
 
                         if route.edges == 1:
@@ -188,7 +173,7 @@ class Simulation:
                             # route_length += euclidean_distance(last_edge.getShape()[0], cv2x_veh_pos)
 
             # remove the length for the first edge and add from src_vehicle position to the end of the first edge
-            if source[0] != ":":
+            if non_cv2x_edge[0] != ":":
                 first_edge = self.net.getEdge(route.edges[0])
 
                 if in_and_near_edge(noncv2x_veh_pos, first_edge.getShape()):
@@ -203,8 +188,8 @@ class Simulation:
                         # route_length += euclidean_distance(noncv2x_veh_pos, first_edge.getShape()[1])
 
             if route_length < min_distance:
-                min_distance = route.length
-                min_dist_destination = destination
+                min_distance = route_length
+                min_dist_destination = destination_edge
 
             # route_distance = 0
             # prev_edge_points = None
@@ -393,7 +378,7 @@ class Simulation:
             # 3) Solve which info to send to base station
             # 3.1) Calculate required information
             scores_per_cv2x = self.calculate_scores_per_cv2x(cv2x_perceived_non_cv2x_vehicles, cv2x_vehicles, non_cv2x_vehicles,
-                                                             buildings)
+                                                             buildings, self.hyper_params['time_threshold'])
 
             # 3.2) Get Highest Score for each cv2x vehicle
             score_per_cv2x = {cv2x: max(scores, key=lambda x: x[1]) for cv2x, scores in scores_per_cv2x.items()}
@@ -418,7 +403,9 @@ class Simulation:
                                      + "_" + str(self.hyper_params['fov'])
                                      + "_" + str(self.hyper_params["view_range"])
                                      + "_" + str(self.hyper_params["num_RBs"])
-                                     + "_" + str(self.hyper_params["tot_num_vehicles"])+".txt")
+                                     + "_" + str(self.hyper_params["tot_num_vehicles"])
+                                     + "_" + str(self.hyper_params['time_threshold'])
+                                     +".txt")
 
             sent, unsent = solver.find_optimal_assignment(save_path)
 
@@ -453,5 +440,7 @@ if __name__ == '__main__':
     hyper_params["num_RBs"] = 30
     hyper_params['message_size'] = 2000*8
     hyper_params['tot_num_vehicles'] = 150
+    hyper_params['time_threshold'] = 10
+
     sim = Simulation(hyper_params, "4_0")
     sim.run()

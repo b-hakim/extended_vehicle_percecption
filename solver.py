@@ -106,7 +106,7 @@ class Solver:
                 with open(save_path, 'a') as fw:
                     fw.write('Solution:'
                          + '\nObjective value = ' + str(solver.Objective().Value())
-                         + "\n\nRBs" + str(self.K) + "\n\n")
+                         + "\n\nRBs = " + str(self.K) + "\n\n")
 
                     s = ""
                     for n in alpha_n.keys():

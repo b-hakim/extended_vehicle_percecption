@@ -87,15 +87,56 @@ def get_slope_y_intercept(line):
     return slope, c
 
 
-def in_and_near_segment(pt, line):
-    m, inter = get_slope_y_intercept(line)
+def distance_from_point_2_line(pt, line_param):
+    if line_param[0] is None:
+        return abs(line_param[1] - pt[0])
 
-    if m is None:
-        near_line = abs(pt[0] - inter) < 0.5
-    else:
-        near_line = abs(pt[1] - m * pt[0] - inter) < 0.5
+    return abs(line_param[0] * pt[0] - pt[1] + line_param[1]) / np.sqrt(line_param[0] * line_param[0] + 1)
 
-    in_segment = (line[0][0] - 0.5 < pt[0] < line[1][0] + 0.5 and line[0][1] - 0.5 < pt[1] < line[1][1] + 0.5) \
-                 or (line[1][0] - 0.5 < pt[0] < line[0][0] + 0.5 and line[1][1] - 0.5 < pt[1] < line[0][1] + 0.5)
 
-    return near_line and in_segment
+def in_segment(pt, line):
+    # line_param = get_slope_y_intercept(line)
+    # d = distance_from_point_2_line (pt, line_param)
+    # near_line = d < 0.5
+    minx, miny, maxx, maxy = min(line[0][0],line[1][0]), min(line[0][1],line[1][1]), \
+                             max(line[0][0],line[1][0]), max(line[0][1],line[1][1])
+
+    in_segment = minx - 0.5 < pt[0] < maxx + 0.5 and miny - 0.5 < pt[1] < maxy + 0.5
+
+    # return near_line and in_segment
+    return in_segment
+
+
+def in_and_near_edge(cv2x_veh_pos, edge_segments):
+    for i in range(1, len(edge_segments)):
+        line = edge_segments[i-1], edge_segments[i]
+
+        if in_segment(cv2x_veh_pos, line):
+            return True
+
+    return False
+
+
+def get_dist_from_to(pos_from, pos_to, edge_segments):
+    dist = 0
+    first_pt_found = False
+
+    for i in range(1, len(edge_segments)):
+        line = edge_segments[i-1], edge_segments[i]
+
+        if not first_pt_found:
+            if in_segment(pos_from, line):
+                first_pt_found = True
+
+                if in_segment(pos_to, line):
+                    return euclidean_distance(pos_from, pos_to)
+                else:
+                    dist += euclidean_distance(pos_from, line[1])
+        else:
+            if in_segment(pos_to, line):
+                dist += euclidean_distance(line[0], pos_to)
+                return dist
+            else:
+                dist += euclidean_distance(line[0], line[1])
+
+    assert False

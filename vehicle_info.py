@@ -2,7 +2,9 @@ from typing import Type
 
 import traci
 
-from math_utils import euclidean_distance, angle_between_two_vectors, get_vector, does_line_intersect_polygon
+from math_utils import euclidean_distance, angle_between_two_vectors, get_vector, does_line_intersect_polygon, \
+    in_and_near_edge, get_dist_from_to
+
 import numpy as np
 
 
@@ -20,6 +22,25 @@ class Vehicle:
     @property
     def pos(self):
         return traci.vehicle.getPosition(self.vehicle_id)
+
+    @property
+    def center_pos(self):
+        def rotate_vector(vec, ceta_degree, pivot):
+            vec -= pivot.reshape((2, 1))
+            ceta_rad = np.deg2rad(ceta_degree)
+            rot_mat = np.array([[np.cos(ceta_rad), -np.sin(ceta_rad)],
+                                [np.sin(ceta_rad), np.cos(ceta_rad)]])
+            rotated_vector = np.dot(rot_mat, vec)
+            rotated_vector += pivot.reshape((2, 1))
+            return rotated_vector
+
+        center = np.array([
+            [self.pos[0], self.pos[1] - self.dimension[1]/2],
+        ])
+
+        ang = self.orientation_angle_degree - 90
+        center = rotate_vector(center.transpose(), ang, np.array(self.pos)).transpose()
+        return center[0]
 
     @property
     def speed(self):
@@ -51,16 +72,21 @@ class Vehicle:
     @staticmethod
     def dist_between_edges(first_edge, next_edge):
         r = traci.simulation.findRoute(first_edge._id, next_edge._id)
+        assert len(r.edges) == 2 or len(r.edges) == 1
         return r.length - first_edge.getLength() - next_edge.getLength()
 
     @staticmethod
-    def get_route_travel_time(route, net):
+    def get_route_travel_time(route, net, veh_pos):
         d = 0
         prev_edge = None
 
         for edge_id in route:
             curr_edge = net.getEdge(edge_id)
             d += curr_edge.getLength()
+
+            if in_and_near_edge(veh_pos, curr_edge.getShape()):
+                d -= curr_edge._length
+                d += get_dist_from_to(veh_pos, curr_edge.getShape()[-1], curr_edge.getShape())
 
             if prev_edge is not None:
                 junction_dist = Vehicle.dist_between_edges(prev_edge, curr_edge)
@@ -70,21 +96,23 @@ class Vehicle:
 
         return 3600 * (d/40000)
 
-    def get_future_route(self, net):
+    def get_future_route(self, net, time_threshold):
         full_route = traci.vehicle.getRoute(self.vehicle_id)
         current_road = traci.vehicle.getRoadID(self.vehicle_id)
 
         if current_road[0] == ":":
             current_road = self.__previous_edge_road
+            start = full_route.index(current_road) + 1
+        else:
+            start = full_route.index(current_road)
 
-        start = full_route.index(current_road)
         future_route = full_route[start:]
 
-        ## make sure this road is reacheable within 5 sec at most for 40km/h
+        ## make sure this road is reacheable within 10 sec at most for 40km/h i.e. ~111 meters
         trimmed_future_route = []
 
         for edge in future_route:
-            if Vehicle.get_route_travel_time(trimmed_future_route + [edge], net) <= 5:
+            if Vehicle.get_route_travel_time(trimmed_future_route + [edge], net, self.pos) <= time_threshold:
                 trimmed_future_route.append(edge)
             else:
                 break
@@ -92,7 +120,7 @@ class Vehicle:
         current_road = traci.vehicle.getRoadID(self.vehicle_id)
 
         if current_road[0] == ":":
-            trimmed_future_route = [current_road] + trimmed_future_route[1:]
+            trimmed_future_route = [current_road] + trimmed_future_route
 
         return trimmed_future_route
 
