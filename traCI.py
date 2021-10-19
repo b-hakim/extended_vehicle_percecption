@@ -80,7 +80,7 @@ class Simulation:
         #           p = probability the cv2x seeing the non_cv2x
         #           interest = (1/minT) * (p)
         cv2x_future_edges = cv2x_vehicle.get_future_route(self.net, time_threshold)
-        print(cv2x_vehicle.vehicle_id,non_cv2x_vehicle.vehicle_id)
+        # print(cv2x_vehicle.vehicle_id,non_cv2x_vehicle.vehicle_id)
 
         min_dist, min_dist_edge = self.get_shortest_route(cv2x_vehicle.pos, non_cv2x_vehicle.pos,
                                                           non_cv2x_vehicle.get_current_road(), cv2x_future_edges)
@@ -258,11 +258,9 @@ class Simulation:
         return h_n
 
     def run(self, repeat_experiment=False):
-        import traci
-
         sumoBinary = "/usr/bin/sumo"
         # sumoBinary = "/usr/bin/sumo-gui"
-        sumoCmd = [sumoBinary, "-c", self.hyper_params['scenario_map']]
+        sumoCmd = [sumoBinary, "-c", self.hyper_params['scenario_map'], '--no-warnings']
         traci.start(sumoCmd)
         step = 0
         viz = SumoVisualizer(self.hyper_params)
@@ -335,6 +333,7 @@ class Simulation:
                 # if np.random.random() > 0.5:
                 snapshot = True
 
+            # print(f"Step={step}, N={len(vehicle_ids)}")
             # print("=============================================================")
 
             if not snapshot:
@@ -373,7 +372,15 @@ class Simulation:
 
                 tot_perceived_objects += len(non_cv2x_ids)
 
-            viz.save_img(os.path.join(os.path.dirname(self.hyper_params['scenario_path']), "map.png"))
+            save_path = os.path.join(os.path.dirname(self.hyper_params['scenario_path']),
+                                     "map_" + str(self.hyper_params['cv2x_N'])
+                                     + "_" + str(self.hyper_params['fov'])
+                                     + "_" + str(self.hyper_params["view_range"])
+                                     + "_" + str(self.hyper_params["num_RBs"])
+                                     + "_" + str(self.hyper_params["tot_num_vehicles"])
+                                     + "_" + str(self.hyper_params['time_threshold'])
+                                     + ".png")
+            viz.save_img(save_path)
 
             # 3) Solve which info to send to base station
             # 3.1) Calculate required information
@@ -384,7 +391,9 @@ class Simulation:
             score_per_cv2x = {cv2x: max(scores, key=lambda x: x[1]) for cv2x, scores in scores_per_cv2x.items()}
 
             # 3.3) Prevent Vehicles from sending with score = 0
-            score_per_cv2x = {cv2x:score_receiver for cv2x, score_receiver in score_per_cv2x.items() if score_receiver[1] != 0}
+            score_per_cv2x = {cv2x:score_receiver for cv2x, score_receiver in score_per_cv2x.items() if score_receiver[1] !=687 0}
+
+            total_requests_duplicated = len(score_per_cv2x)
 
             # 3.4) Make unique
             score_per_cv2x = self.make_unique_requests(score_per_cv2x)
@@ -410,7 +419,8 @@ class Simulation:
             sent, unsent = solver.find_optimal_assignment(save_path)
 
             with open(save_path, 'a') as fw:
-                fw.write("Total Requests: " + str(sent+unsent)
+                fw.write("Total Duplicate Requests: " + str(total_requests_duplicated)
+                         + "\nTotal Unique Requests: " + str(sent+unsent)
                          + "\nSent: " + str(sent)
                          + "\nUnsent: " + str(unsent)
                          + "\nPerceived Vehicles: " + str(tot_perceived_objects))
@@ -441,6 +451,19 @@ if __name__ == '__main__':
     hyper_params['message_size'] = 2000*8
     hyper_params['tot_num_vehicles'] = 150
     hyper_params['time_threshold'] = 10
+########################################################################################################################
+    hyper_params['scenario_path'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto/toronto_0/0/test.net.xml"
+    hyper_params['scenario_map'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto/toronto_0/0/net.sumo.cfg"
+    hyper_params['scenario_polys'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto/toronto_0/0/map.poly.xml"
+    hyper_params["cv2x_N"] = 0.25
+    hyper_params["fov"] = 120
+    hyper_params["view_range"] = 75
+    # hyper_params["base_station_position"] = 1600, 600
+    hyper_params["base_station_position"] = (650, 500)
+    hyper_params["num_RBs"] = 50
+    hyper_params['message_size'] = 2000*8
+    hyper_params['tot_num_vehicles'] = 100
+    hyper_params['time_threshold'] = 10
 
-    sim = Simulation(hyper_params, "4_0")
+    sim = Simulation(hyper_params, "0_0")
     sim.run()

@@ -46,7 +46,7 @@ class Solver:
             sum_n = 0
 
             for k in range(self.K):
-                c_n_k = int( t * w * np.log2( 1 + (P * self.h_n_k[n][k])/(n0*w) ) )
+                c_n_k = int( ( t * w * np.log2( 1 + (P * self.h_n_k[n][k])/(n0*w) ) ) )
 
                 if n not in c_n_ks:
                     c_n_ks[n] = [c_n_k]
@@ -102,38 +102,37 @@ class Solver:
                          + "\nLength Requests = " + str(len(list(self.s_n.values())))
                          + "\nTime to solve: " + str (end - start) + "\n\n")
 
-            if status == pywraplp.Solver.OPTIMAL:
-                with open(save_path, 'a') as fw:
-                    fw.write('Solution:'
-                         + '\nObjective value = ' + str(solver.Objective().Value())
-                         + "\n\nRBs = " + str(self.K) + "\n\n")
-
-                    s = ""
-                    for n in alpha_n.keys():
-                        if s!="":
-                            s+= " + "
-                        s+= str(np.round(self.s_n[n], 2)) + "*" + str(abs(alpha_n[n].solution_value()))
-
-                    fw.write('alpha: \n' + s + "\n\n")
-
-                    s = ""
-                    for n in c_n_ks.keys():
-                        s += str(c_n_ks[n])
-                        s += "\n"
-
-                    fw.write('c_n_k: \n' + s + "\n\n")
-
-                    fw.write('eita:\n')
-
-                    for n in eita_n_k.keys():
-                        s = "["
-                        for k in range(self.K):
-                            s += str(abs(eita_n_k[n][k].solution_value())) + ", "
-                        fw.write(s + "]\n")
-
-            else:
+            if status != pywraplp.Solver.OPTIMAL:
                 with open(save_path, 'a') as fw:
                     fw.write('The problem does not have an optimal solution.\n')
+
+            with open(save_path, 'a') as fw:
+                fw.write('Solution:'
+                     + '\nObjective value = ' + str(solver.Objective().Value())
+                     + "\n\nRBs = " + str(self.K) + "\n\n")
+
+                s = ""
+                for n in alpha_n.keys():
+                    if s!="":
+                        s+= " + "
+                    s+= str(np.round(self.s_n[n], 2)) + "*" + str(abs(alpha_n[n].solution_value()))
+
+                fw.write('alpha: \n' + s + "\n\n")
+
+                s = ""
+                for n in c_n_ks.keys():
+                    s += str(c_n_ks[n])
+                    s += "\n"
+
+                fw.write('c_n_k: \n' + s + "\n\n")
+
+                fw.write('eita:\n')
+
+                for n in eita_n_k.keys():
+                    s = "["
+                    for k in range(self.K):
+                        s += str(abs(eita_n_k[n][k].solution_value())) + ", "
+                    fw.write(s + "]\n")
 
             with open(save_path, 'a') as fw:
                 fw.writelines('\nAdvanced usage:')
