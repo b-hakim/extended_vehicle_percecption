@@ -181,6 +181,8 @@ if __name__ == '__main__':
     print("*******************************************************************************************")
     run_simulation(cv2x_percentage=0.55, fov=120, view_range=75, num_RBs=70, tot_num_vehicles=100)
     print("*******************************************************************************************")
+    run_simulation(cv2x_percentage=0.55, fov=120, view_range=75, num_RBs=80, tot_num_vehicles=100)
+    print("*******************************************************************************************")
     run_simulation(cv2x_percentage=0.55, fov=120, view_range=75, num_RBs=90, tot_num_vehicles=100)
     print("*******************************************************************************************")
     run_simulation(cv2x_percentage=0.55, fov=120, view_range=75, num_RBs=100, tot_num_vehicles=100)
@@ -206,10 +208,10 @@ if __name__ == '__main__':
     print("Done #5 cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=20-100, tot_num_vehicles=100")
 
     ####################################################################################################################
-    run_simulation(cv2x_percentage=0.65, fov=60, view_range=75, num_RBs=90, tot_num_vehicles=100)
+    run_simulation(cv2x_percentage=0.65, fov=60, view_range=75, num_RBs=100, tot_num_vehicles=100)
     print("*******************************************************************************************")
     print("Done #6 cv2x_percentage=0.65, fov=60, view_range=75, num_RBs=90, tot_num_vehicles=100")
-    run_simulation(cv2x_percentage=0.65, fov=90, view_range=75, num_RBs=90, tot_num_vehicles=100)
+    run_simulation(cv2x_percentage=0.65, fov=90, view_range=75, num_RBs=100, tot_num_vehicles=100)
     print("Done #7 cv2x_percentage=0.65, fov=90, view_range=75, num_RBs=90, tot_num_vehicles=100")
 
     ###################################################################################################################
