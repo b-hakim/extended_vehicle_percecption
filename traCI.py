@@ -391,7 +391,7 @@ class Simulation:
             score_per_cv2x = {cv2x: max(scores, key=lambda x: x[1]) for cv2x, scores in scores_per_cv2x.items()}
 
             # 3.3) Prevent Vehicles from sending with score = 0
-            score_per_cv2x = {cv2x:score_receiver for cv2x, score_receiver in score_per_cv2x.items() if score_receiver[1] !=687 0}
+            score_per_cv2x = {cv2x:score_receiver for cv2x, score_receiver in score_per_cv2x.items() if score_receiver[1] !=687}
 
             total_requests_duplicated = len(score_per_cv2x)
 
