@@ -1,5 +1,6 @@
 import os, sys
 import random
+import time
 from ast import literal_eval
 from typing import List, Dict
 
@@ -42,10 +43,11 @@ class Simulation:
         4- else, add this non-cv2x to the seen vehicle of this specific cv2x-vehicle
         """
         cv2x_vehicles_perception = {}
+        cv2x_vehicles_perception_visible = {}
 
         for cv2x_vehicle in cv2x_vehicles:
             for non_cv2x_vehicle in non_cv2x_vehicles:
-                if cv2x_vehicle.can_see_vehicle(non_cv2x_vehicle):
+                if cv2x_vehicle.can_see_vehicle(non_cv2x_vehicle, detection_probability=1):
                     is_occluded = False
 
                     for building in buildings:
@@ -56,18 +58,24 @@ class Simulation:
                     if not is_occluded:
                         for non_cv2x_obstacle_vehicle in non_cv2x_vehicles+cv2x_vehicles:
                             if non_cv2x_obstacle_vehicle.vehicle_id != non_cv2x_vehicle.vehicle_id and \
-                                non_cv2x_obstacle_vehicle.vehicle_id != cv2x_vehicle.vehicle_id:
+                                    non_cv2x_obstacle_vehicle.vehicle_id != cv2x_vehicle.vehicle_id:
                                 if cv2x_vehicle.vehicle_in_sight(non_cv2x_obstacle_vehicle, non_cv2x_vehicle):
                                     is_occluded = True
                                     break
 
                     if not is_occluded:
-                        if cv2x_vehicle.vehicle_id in cv2x_vehicles_perception:
-                            cv2x_vehicles_perception[cv2x_vehicle.vehicle_id].append(non_cv2x_vehicle.vehicle_id)
-                        else:
-                            cv2x_vehicles_perception[cv2x_vehicle.vehicle_id] = [non_cv2x_vehicle.vehicle_id]
+                        if cv2x_vehicle.can_see_vehicle(non_cv2x_vehicle, self.hyper_params["perception_probability"]):
+                            if cv2x_vehicle.vehicle_id in cv2x_vehicles_perception:
+                                cv2x_vehicles_perception[cv2x_vehicle.vehicle_id].append(non_cv2x_vehicle.vehicle_id)
+                            else:
+                                cv2x_vehicles_perception[cv2x_vehicle.vehicle_id] = [non_cv2x_vehicle.vehicle_id]
 
-        return cv2x_vehicles_perception
+                        if cv2x_vehicle.vehicle_id in cv2x_vehicles_perception_visible:
+                            cv2x_vehicles_perception_visible[cv2x_vehicle.vehicle_id].append(non_cv2x_vehicle.vehicle_id)
+                        else:
+                            cv2x_vehicles_perception_visible[cv2x_vehicle.vehicle_id] = [non_cv2x_vehicle.vehicle_id]
+
+        return cv2x_vehicles_perception, cv2x_vehicles_perception_visible
 
     def get_interest_cv2x_in_vehicle(self, cv2x_vehicle:Vehicle, non_cv2x_vehicle:Vehicle, p:float, time_threshold=10):
         # Traj = the trajectory of the cv2x vehicle.
@@ -117,13 +125,26 @@ class Simulation:
                     receiver_cv2x_vehicle = cv2x_vehicles[receiver_cv2x_id]
                     perceived_non_cv2x_vehicle = non_cv2x_vehicles[perceived_non_cv2x_id]
 
-                    p = sender_cv2x_vehicle.get_probability_cv2x_sees_non_cv2x(receiver_cv2x_vehicle, perceived_non_cv2x_vehicle,
-                                                                                remaining_perceived_non_cv2x_vehicles, buildings)
+                    p = sender_cv2x_vehicle.get_probability_cv2x_sees_non_cv2x(receiver_cv2x_vehicle,
+                                                                           perceived_non_cv2x_vehicle,
+                                                                           remaining_perceived_non_cv2x_vehicles,
+                                                                           buildings,
+                                                                           self.hyper_params["perception_probability"])
+
+                    if self.hyper_params["estimate_detection_error"]:
+                        if p == 1: # cv2x receiver sees object to be sent, then add probability it doesnt sees it!
+                            if random.random() > self.hyper_params["perception_probability"]: # probably receiver doesnt see it!
+                                p = 0.5
+
+                    p = 1 - p # set to 0 if cv2x sees the object to be sent
+
                     if p == 0:
-                        scores.append((receiver_cv2x_id,0))
+                        scores.append((receiver_cv2x_id, 0, perceived_non_cv2x_vehicle))
                     else:
                         scores.append((receiver_cv2x_id,
-                                       self.get_interest_cv2x_in_vehicle(receiver_cv2x_vehicle, perceived_non_cv2x_vehicle, p, time_threshold)))
+                                       self.get_interest_cv2x_in_vehicle(receiver_cv2x_vehicle,
+                                                                         perceived_non_cv2x_vehicle, p, time_threshold),
+                                       perceived_non_cv2x_vehicle))
 
             scores_per_cv2x[sender_cv2x_id] = scores
         return scores_per_cv2x
@@ -218,7 +239,7 @@ class Simulation:
         receivers = {}
 
         for sender_cv2x_id, receiver_score in score_per_cv2x.items():
-            receiver_cv2x, score = receiver_score
+            receiver_cv2x, score, _ = receiver_score
 
             if receiver_cv2x in receivers:
                 if receivers[receiver_cv2x] < score:
@@ -258,12 +279,15 @@ class Simulation:
         return h_n
 
     def run(self, repeat_experiment=False):
+        tot_time_start = time.time()
         sumoBinary = "/usr/bin/sumo"
         # sumoBinary = "/usr/bin/sumo-gui"
-        sumoCmd = [sumoBinary, "-c", self.hyper_params['scenario_map'], '--no-warnings']
+        sumoCmd = [sumoBinary, "-c", self.hyper_params['scenario_map'], '--no-warnings', '--quit-on-end']
         traci.start(sumoCmd)
         step = 0
-        viz = SumoVisualizer(self.hyper_params)
+
+        if self.hyper_params["save_visual"]:
+            viz = SumoVisualizer(self.hyper_params)
 
         repeat_path = os.path.join(os.path.dirname(self.hyper_params['scenario_path']), "repeat.txt")
         ########################################## Load Rand State ################################################
@@ -340,7 +364,8 @@ class Simulation:
                 continue
 
             # print(vehicles.keys())
-            viz.draw_vehicles(vehicles.values())
+            if self.hyper_params["save_visual"]:
+                viz.draw_vehicles(vehicles.values())
 
             cv2x_len = int(self.hyper_params["cv2x_N"] * len(vehicle_ids))
             cv2x_vehicles_indexes = random.sample(range(len(vehicle_ids)), cv2x_len)
@@ -348,18 +373,21 @@ class Simulation:
             # Transform indexes into IDs and vehicles
             cv2x_vehicles = {vehicle_ids[index]:vehicles[vehicle_ids[index]] for index in cv2x_vehicles_indexes}
             non_cv2x_vehicles = {vehicle_ids[index]:vehicles[vehicle_ids[index]] for index in non_cv2x_vehicles_indexes}
-
+            # print(cv2x_vehicles_indexes)
             show_id = None
 
-            for cv2x_id, vehicle in cv2x_vehicles.items():
-                if cv2x_id != show_id and show_id is not None:
-                    continue
+            if self.hyper_params["save_visual"]:
+                for cv2x_id, vehicle in cv2x_vehicles.items():
+                    if cv2x_id != show_id and show_id is not None:
+                        continue
 
-                viz.draw_vehicle_perception(vehicle, (185, 218, 255))
+                    viz.draw_vehicle_perception(vehicle, (185, 218, 255))
 
             # 2) Get seen non-cv2x vehicles by each cv2x_vehicle
-            cv2x_perceived_non_cv2x_vehicles = self.get_seen_vehicles(list(cv2x_vehicles.values()), list(non_cv2x_vehicles.values()), buildings)
+            cv2x_perceived_non_cv2x_vehicles, cv2x_vehicles_perception_visible = self.get_seen_vehicles(list(cv2x_vehicles.values()),
+                                                                      list(non_cv2x_vehicles.values()), buildings)
             tot_perceived_objects = 0
+            tot_visible_objects = 0
 
             for cv2x_id, non_cv2x_ids in cv2x_perceived_non_cv2x_vehicles.items():
                 if cv2x_id != show_id and show_id is not None:
@@ -367,10 +395,23 @@ class Simulation:
 
                 cv2x_non_vehs = [vehicles[id] for id in non_cv2x_ids]
 
-                for vehicle in cv2x_non_vehs:
-                    viz.draw_vehicle_body(vehicle, color=(0, 0, 128))
+                if self.hyper_params["save_visual"]:
+                    for vehicle in cv2x_non_vehs:
+                        viz.draw_vehicle_body(vehicle, color=(0, 0, 128))
 
                 tot_perceived_objects += len(non_cv2x_ids)
+
+            for cv2x_id, non_cv2x_ids in cv2x_vehicles_perception_visible.items():
+                if cv2x_id != show_id and show_id is not None:
+                    continue
+
+                cv2x_non_vehs = [vehicles[id] for id in non_cv2x_ids]
+
+                if self.hyper_params["save_visual"]:
+                    for vehicle in cv2x_non_vehs:
+                        viz.draw_vehicle_body(vehicle, color=(0, 0, 128))
+
+                tot_visible_objects += len(non_cv2x_ids)
 
             save_path = os.path.join(os.path.dirname(self.hyper_params['scenario_path']),
                                      "map_" + str(self.hyper_params['cv2x_N'])
@@ -379,19 +420,46 @@ class Simulation:
                                      + "_" + str(self.hyper_params["num_RBs"])
                                      + "_" + str(self.hyper_params["tot_num_vehicles"])
                                      + "_" + str(self.hyper_params['time_threshold'])
+                                     + "_" + str(self.hyper_params['perception_probability'])
+                                     + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
                                      + ".png")
-            viz.save_img(save_path)
+            if self.hyper_params["save_visual"]:
+                viz.save_img(save_path)
 
             # 3) Solve which info to send to base station
             # 3.1) Calculate required information
             scores_per_cv2x = self.calculate_scores_per_cv2x(cv2x_perceived_non_cv2x_vehicles, cv2x_vehicles, non_cv2x_vehicles,
                                                              buildings, self.hyper_params['time_threshold'])
+            # Count number of perceived
+            perceived_but_sent_vehicle = 0
+            not_perceived_but_visible_sent_vehicle = 0
+
+            for sender_cv2x_id, scores in scores_per_cv2x.items():
+                for (receiver_id, score, perceived_non_cv2x_vehicle) in scores:
+                    perceived = False
+                    if receiver_id in cv2x_perceived_non_cv2x_vehicles:
+                        if score != 0:
+                            # means there is an interest in this object, meaning it is not believed
+                            # to be seen by the receiver (and not the case of not seen but interest
+                            # cause it is verified to be seen in this if)
+                            perceived_non_cv2x_vehicles = cv2x_perceived_non_cv2x_vehicles[receiver_id]
+
+                            if perceived_non_cv2x_vehicle.vehicle_id in perceived_non_cv2x_vehicles:
+                                perceived_but_sent_vehicle += 1
+                                perceived = True
+
+                    if receiver_id in cv2x_vehicles_perception_visible and not perceived:
+                        visible_non_cv2x_vehicles = cv2x_vehicles_perception_visible[receiver_id]
+
+                        if perceived_non_cv2x_vehicle.vehicle_id in visible_non_cv2x_vehicles:
+                            if score != 0:
+                                not_perceived_but_visible_sent_vehicle += 1
 
             # 3.2) Get Highest Score for each cv2x vehicle
             score_per_cv2x = {cv2x: max(scores, key=lambda x: x[1]) for cv2x, scores in scores_per_cv2x.items()}
 
             # 3.3) Prevent Vehicles from sending with score = 0
-            score_per_cv2x = {cv2x:score_receiver for cv2x, score_receiver in score_per_cv2x.items() if score_receiver[1] !=687}
+            score_per_cv2x = {cv2x:score_receiver for cv2x, score_receiver in score_per_cv2x.items() if score_receiver[1] != 0}
 
             total_requests_duplicated = len(score_per_cv2x)
 
@@ -414,24 +482,35 @@ class Simulation:
                                      + "_" + str(self.hyper_params["num_RBs"])
                                      + "_" + str(self.hyper_params["tot_num_vehicles"])
                                      + "_" + str(self.hyper_params['time_threshold'])
+                                     + "_" + str(self.hyper_params['perception_probability'])
+                                     + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
                                      +".txt")
 
             sent, unsent = solver.find_optimal_assignment(save_path)
 
             with open(save_path, 'a') as fw:
-                fw.write("Total Duplicate Requests: " + str(total_requests_duplicated)
+                fw.write("AVs: " + str(len(cv2x_vehicles))
+                         + "\nNon-AVs: " + str(len(non_cv2x_vehicles))
+                         + "\nTotal Duplicate Requests: " + str(total_requests_duplicated)
                          + "\nTotal Unique Requests: " + str(sent+unsent)
                          + "\nSent: " + str(sent)
                          + "\nUnsent: " + str(unsent)
-                         + "\nPerceived Vehicles: " + str(tot_perceived_objects))
+                         + "\nPerceived Vehicles: " + str(tot_perceived_objects)
+                         + "\nVisible Vehicles: " + str(tot_visible_objects)
+                         + "\nPerceived But Sent by Vehicles: " + str(perceived_but_sent_vehicle)
+                         + "\nNot Perceived but visible and Sent by Vehicle: " + str(not_perceived_but_visible_sent_vehicle)
+                         )
 
             if snapshot:
                 break
 
-        viz.save_img()
+        if self.hyper_params["save_visual"]:
+            viz.save_img()
         # input("Simulation ended, close GUI?")
         print(f"Simulation #{self.sim_id} terminated!")#, scores_per_cv2x.items())
         traci.close()
+
+        print("time for one simulation", time.time()-tot_time_start, "seconds")
 
 
 if __name__ == '__main__':
@@ -466,4 +545,4 @@ if __name__ == '__main__':
     hyper_params['time_threshold'] = 10
 
     sim = Simulation(hyper_params, "0_0")
-    sim.run()
+    # sim.run()
