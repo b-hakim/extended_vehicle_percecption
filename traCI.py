@@ -1,4 +1,5 @@
 import os, sys
+import pickle
 import random
 import time
 from ast import literal_eval
@@ -8,7 +9,7 @@ import numpy as np
 import sumolib
 import traci
 
-from math_utils import euclidean_distance, in_and_near_edge, get_dist_from_to, in_segment
+from math_utils import euclidean_distance, in_and_near_edge, get_dist_from_to, in_segment, move_point
 from solver import Solver
 from sumo_visualizer import SumoVisualizer
 from vehicle_info import Vehicle
@@ -129,7 +130,8 @@ class Simulation:
                                                                            perceived_non_cv2x_vehicle,
                                                                            remaining_perceived_non_cv2x_vehicles,
                                                                            buildings,
-                                                                           self.hyper_params["perception_probability"])
+                                                                           self.hyper_params["perception_probability"],
+                                                                           self.hyper_params["per"])
 
                     if self.hyper_params["estimate_detection_error"]:
                         if p == 1: # cv2x receiver sees object to be sent, then add probability it doesnt sees it!
@@ -239,13 +241,13 @@ class Simulation:
         receivers = {}
 
         for sender_cv2x_id, receiver_score in score_per_cv2x.items():
-            receiver_cv2x, score, _ = receiver_score
+            receiver_cv2x, score, perceived_object = receiver_score
 
             if receiver_cv2x in receivers:
-                if receivers[receiver_cv2x] < score:
-                    receivers[receiver_cv2x] = score
+                if receivers[receiver_cv2x][1] < score:
+                    receivers[receiver_cv2x] = [sender_cv2x_id, score, perceived_object]
             else:
-                receivers[receiver_cv2x] = score
+                receivers[receiver_cv2x] = [sender_cv2x_id, score, perceived_object]
 
         return receivers
 
@@ -278,8 +280,7 @@ class Simulation:
 
         return h_n
 
-    def run(self, repeat_experiment=False):
-        tot_time_start = time.time()
+    def run(self, use_seed=False):
         sumoBinary = "/usr/bin/sumo"
         # sumoBinary = "/usr/bin/sumo-gui"
         sumoCmd = [sumoBinary, "-c", self.hyper_params['scenario_map'], '--no-warnings', '--quit-on-end']
@@ -291,7 +292,7 @@ class Simulation:
 
         repeat_path = os.path.join(os.path.dirname(self.hyper_params['scenario_path']), "repeat.txt")
         ########################################## Load Rand State ################################################
-        if repeat_experiment:
+        if use_seed:
             with open(repeat_path) as fr:
                 np_rand_state = (fr.readline().strip(),np.array(literal_eval(fr.readline().strip())), int(fr.readline().strip()),
                                  int(fr.readline().strip()), float(fr.readline().strip()))
@@ -342,7 +343,8 @@ class Simulation:
                         v_found = True
 
                 if not v_found:
-                    vehicles[vid] = Vehicle(vehicle_id=vid, hyper_params=self.hyper_params)
+                    vehicles[vid] = Vehicle(vehicle_id=vid, view_range=self.hyper_params["view_range"],
+                                            fov=self.hyper_params["fov"])
 
             need_to_remove = set(vehicles.keys()) - set(vehicle_ids)
 
@@ -372,6 +374,7 @@ class Simulation:
             non_cv2x_vehicles_indexes = list(set(range(len(vehicle_ids))) - set(cv2x_vehicles_indexes))
             # Transform indexes into IDs and vehicles
             cv2x_vehicles = {vehicle_ids[index]:vehicles[vehicle_ids[index]] for index in cv2x_vehicles_indexes}
+            [av.gps_error(self.hyper_params["noise_distance"]) for avid, av in cv2x_vehicles.items()]
             non_cv2x_vehicles = {vehicle_ids[index]:vehicles[vehicle_ids[index]] for index in non_cv2x_vehicles_indexes}
             # print(cv2x_vehicles_indexes)
             show_id = None
@@ -422,7 +425,9 @@ class Simulation:
                                      + "_" + str(self.hyper_params['time_threshold'])
                                      + "_" + str(self.hyper_params['perception_probability'])
                                      + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
-                                     + ".png")
+                                     + "_" + str(self.hyper_params["noise_distance"])
+                                     # + ("_egps" if self.hyper_params["noise_distance"] else "_negps")
+                                      + ".png")
             if self.hyper_params["save_visual"]:
                 viz.save_img(save_path)
 
@@ -484,9 +489,45 @@ class Simulation:
                                      + "_" + str(self.hyper_params['time_threshold'])
                                      + "_" + str(self.hyper_params['perception_probability'])
                                      + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
+                                     + "_" + str(self.hyper_params["noise_distance"])
+                                     # + ("_egps" if self.hyper_params["noise_distance"] else "_negps")
                                      +".txt")
 
-            sent, unsent = solver.find_optimal_assignment(save_path)
+            sent, unsent, selected_messages_requests = solver.find_optimal_assignment(save_path)
+
+            if self.hyper_params["save_gnss"]:
+                # Save location of objects and their IDs in a file
+                # Save the sender and receiver and objects in another file
+                with open(save_path.replace('results', 'GNSS').replace(".txt",'.pkl'), 'wb') as fw:
+                    pickle.dump(({v:vehicles[v].pos for v in vehicles.keys()}, selected_messages_requests), fw)
+
+            with open(save_path, 'a') as fw:
+                fw.write("GNSS Errors:\n")
+
+                for msg in selected_messages_requests:
+                    sender_id, (receiver_id, score, obj_pos) = msg
+                    #To do:
+                    # for each msg,
+                    # 1- Calculate the relative position of the object ==> rel_obj_pos and add noise for depth error
+                    # 2- Change the position of the sender based on error ==> sender_noisy_pos
+                    # 3- Calculate the new position of the object ==> abs_obj_noisy_pos
+                    # 4- Calculate the error between rel_obj_po and rel_obj_noisy_pos
+                    # 5- Add noise for detection error
+                    sender_pos = np.array(vehicles[sender_id].pos)
+                    sender_noisy_pos = move_point(sender_pos, random.randint(0, 360), self.hyper_params["noise_distance"])
+                    abs_obj_noisy_pos = get_new_abs_pos(sender_pos, sender_noisy_pos, obj_pos)
+
+                    rel_obj_pos = obj_pos - sender_pos
+                    dir = 1 if random.random() > 0.5 else -1
+                    rel_obj_pos[0] = rel_obj_pos[0] + dir * random.randint(1, 5)/10
+                    dir = 1 if random.random() > 0.5 else -1
+                    rel_obj_pos[1] = rel_obj_pos[1] + dir * random.randint(1, 5)/10
+
+                    abs_obj_noisy_pos = rel_obj_pos + np.array(sender_noisy_pos)
+                    error = np.linalg.norm([abs_obj_noisy_pos - np.array(obj_pos)])
+                    fw.write(f"{sender_id}, {receiver_id}, {score}, {obj_pos}, {error}\n")
+
+                fw.write("\n")
 
             with open(save_path, 'a') as fw:
                 fw.write("AVs: " + str(len(cv2x_vehicles))
@@ -501,16 +542,14 @@ class Simulation:
                          + "\nNot Perceived but visible and Sent by Vehicle: " + str(not_perceived_but_visible_sent_vehicle)
                          )
 
-            if snapshot:
-                break
+            break
 
         if self.hyper_params["save_visual"]:
             viz.save_img()
+
         # input("Simulation ended, close GUI?")
         print(f"Simulation #{self.sim_id} terminated!")#, scores_per_cv2x.items())
         traci.close()
-
-        print("time for one simulation", time.time()-tot_time_start, "seconds")
 
 
 if __name__ == '__main__':

@@ -29,7 +29,7 @@ class Solver:
             for k in range(self.K):
                 tmp.append(solver.IntVar(0.0, 1, 'eita[%s, %i]' % (n, k)))
             eita_n_k[n] = tmp
-            sum_scores += self.s_n[n]
+            sum_scores += self.s_n[n][1]
 
         c_n = {}
         t=0.001
@@ -86,7 +86,7 @@ class Solver:
 
         for n in self.s_n:
             x = n
-            sum_objective += self.s_n[n] * alpha_n[n]
+            sum_objective += self.s_n[n][1] * alpha_n[n]
 
         solver.Maximize(sum_objective)
 
@@ -99,12 +99,14 @@ class Solver:
                 fw.write('Number of variables = ' + str(solver.NumVariables())
                          + "\nNumber of constraints = " + str(solver.NumConstraints())
                          + "\nSum Requests scores = " + str(sum_scores)
-                         + "\nLength Requests = " + str(len(list(self.s_n.values())))
+                         + "\nLength Requests = " + str(len(list(self.s_n.keys())))
                          + "\nTime to solve: " + str (end - start) + "\n\n")
 
             if status != pywraplp.Solver.OPTIMAL:
                 with open(save_path, 'a') as fw:
                     fw.write('The problem does not have an optimal solution.\n')
+
+            selected_messages_requests = []
 
             with open(save_path, 'a') as fw:
                 fw.write('Solution:'
@@ -115,7 +117,9 @@ class Solver:
                 for n in alpha_n.keys():
                     if s!="":
                         s+= " + "
-                    s+= str(np.round(self.s_n[n], 2)) + "*" + str(abs(alpha_n[n].solution_value()))
+                    s+= str(np.round(self.s_n[n][1], 2)) + "*" + str(abs(alpha_n[n].solution_value()))
+                    if alpha_n[n].solution_value() == 1:
+                        selected_messages_requests.append((self.s_n[n][0], [n, self.s_n[n][1], self.s_n[n][2].pos]))
 
                 fw.write('alpha: \n' + s + "\n\n")
 
@@ -143,7 +147,7 @@ class Solver:
         sent = np.count_nonzero([alpha_n[n].solution_value() for n in alpha_n.keys()])
         not_sent = len(list(alpha_n.keys())) - sent
 
-        return sent, not_sent
+        return sent, not_sent, selected_messages_requests
 
 if __name__ == '__main__':
     N = 20 # number of vehicles

@@ -140,3 +140,12 @@ def get_dist_from_to(pos_from, pos_to, edge_segments):
                 dist += euclidean_distance(line[0], line[1])
 
     assert False
+
+
+def move_point(point, angle, distance):
+    return [point[0] + np.sin(np.deg2rad(angle)) * distance,
+            point[1] + np.cos(np.deg2rad(angle)) * distance]
+
+
+def get_new_abs_pos(sender_pos, sender_noisy_pos, obj_pos):
+    pass

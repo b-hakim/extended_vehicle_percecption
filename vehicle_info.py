@@ -4,21 +4,27 @@ from typing import Type
 import traci
 
 from math_utils import euclidean_distance, angle_between_two_vectors, get_vector, does_line_intersect_polygon, \
-    in_and_near_edge, get_dist_from_to
+    in_and_near_edge, get_dist_from_to, move_point
 
 import numpy as np
 
 
 class Vehicle:
-    def __init__(self, vehicle_id, hyper_params):
+    def __init__(self, vehicle_id, view_range, fov):
         self.dimension = (traci.vehicle.getWidth(vehicle_id),
                           traci.vehicle.getLength(vehicle_id),
                           traci.vehicle.getHeight(vehicle_id))
 
         self.vehicle_id = vehicle_id
-        self.viewing_range = hyper_params["view_range"]
-        self.fov = hyper_params["fov"]
+        self.viewing_range = view_range
+        self.fov = fov
         self.__previous_edge_road = traci.vehicle.getRoute(self.vehicle_id)[0]
+
+    def gps_error(self, noise_distance):
+        angle = np.random.randint(0, 360)
+
+        self.gps_pos_error = [np.sin(np.deg2rad(angle)) * noise_distance,
+                              np.cos(np.deg2rad(angle)) * noise_distance]
 
     @property
     def pos(self):
@@ -73,7 +79,7 @@ class Vehicle:
     @staticmethod
     def dist_between_edges(first_edge, next_edge):
         r = traci.simulation.findRoute(first_edge._id, next_edge._id)
-        assert len(r.edges) == 2 or len(r.edges) == 1
+        # assert len(r.edges) == 2 or len(r.edges) == 1
         return r.length - first_edge.getLength() - next_edge.getLength()
 
     @staticmethod
@@ -239,7 +245,7 @@ class Vehicle:
         # for cv2x_to_non_cv2x_corner_line in lines:
         # list of objects occluding cv2x and noncv2x
         for occlusion_vehicle in remaining_perceived_non_cv2x_vehicles:
-            occlusion_vehicle_corners = [v.tolist() for v in occlusion_vehicle.get_vehicle_boundaries()]
+            occlusion_vehicle_corners = [v for v in occlusion_vehicle.get_vehicle_boundaries()]
 
             if does_line_intersect_polygon(cv2x_to_non_cv2x_corner_line, occlusion_vehicle_corners):
                 # If I can see any of these objects,
