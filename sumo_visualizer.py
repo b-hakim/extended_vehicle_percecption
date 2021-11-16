@@ -69,11 +69,11 @@ class SumoVisualizer:
         for vehicle in vehicles:
             self.draw_vehicle_body(vehicle)
 
-            pos = Utils.sumo2opencv_coord(np.array(vehicle.pos), self.img.shape, self.scale)
+            pos = Utils.sumo2opencv_coord(np.array(vehicle.get_pos()), self.img.shape, self.scale)
             cv2.circle(self.img, tuple(np.array(pos).astype(int).tolist()), 1, (0, 255, 0), -1)
 
             magnitude = np.linalg.norm([vehicle.dimension[0] / 2, vehicle.dimension[1] / 2])
-            heading_point = magnitude * vehicle.heading_unit_vector + vehicle.pos
+            heading_point = magnitude * vehicle.heading_unit_vector + vehicle.get_pos()
             heading_point = Utils.sumo2opencv_coord(np.array(heading_point), self.img.shape, self.scale)
             line = tuple(np.array(pos).astype(int).tolist()), tuple(heading_point.astype(int).tolist())
             cv2.line(self.img, line[0], line[1], (0, 255, 0))
@@ -90,10 +90,10 @@ class SumoVisualizer:
         left_limit = np.array([np.cos(a2 * np.pi / 180),
                                np.sin(a2 * np.pi / 180)])
 
-        right_pt = vehicle.viewing_range * right_limit + np.array(vehicle.pos)
-        left_pt = vehicle.viewing_range * left_limit + np.array(vehicle.pos)
+        right_pt = vehicle.viewing_range * right_limit + np.array(vehicle.get_pos())
+        left_pt = vehicle.viewing_range * left_limit + np.array(vehicle.get_pos())
 
-        pos = Utils.sumo2opencv_coord(np.array(vehicle.pos), self.img.shape, self.scale)
+        pos = Utils.sumo2opencv_coord(np.array(vehicle.get_pos()), self.img.shape, self.scale)
         right_pt = Utils.sumo2opencv_coord(right_pt, self.img.shape, self.scale)
         left_pt = Utils.sumo2opencv_coord(left_pt, self.img.shape, self.scale)
 

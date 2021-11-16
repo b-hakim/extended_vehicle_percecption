@@ -119,7 +119,7 @@ class Solver:
                         s+= " + "
                     s+= str(np.round(self.s_n[n][1], 2)) + "*" + str(abs(alpha_n[n].solution_value()))
                     if alpha_n[n].solution_value() == 1:
-                        selected_messages_requests.append((self.s_n[n][0], [n, self.s_n[n][1], self.s_n[n][2].pos]))
+                        selected_messages_requests.append((self.s_n[n][0], [n, self.s_n[n][1], self.s_n[n][2].get_pos()]))
 
                 fw.write('alpha: \n' + s + "\n\n")
 

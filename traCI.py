@@ -9,7 +9,7 @@ import numpy as np
 import sumolib
 import traci
 
-from math_utils import euclidean_distance, in_and_near_edge, get_dist_from_to, in_segment, move_point
+from math_utils import euclidean_distance, in_and_near_edge, get_dist_from_to, in_segment, move_point, get_new_abs_pos
 from solver import Solver
 from sumo_visualizer import SumoVisualizer
 from vehicle_info import Vehicle
@@ -91,7 +91,7 @@ class Simulation:
         cv2x_future_edges = cv2x_vehicle.get_future_route(self.net, time_threshold)
         # print(cv2x_vehicle.vehicle_id,non_cv2x_vehicle.vehicle_id)
 
-        min_dist, min_dist_edge = self.get_shortest_route(cv2x_vehicle.pos, non_cv2x_vehicle.pos,
+        min_dist, min_dist_edge = self.get_shortest_route(cv2x_vehicle.get_pos(), non_cv2x_vehicle.get_pos(),
                                                           non_cv2x_vehicle.get_current_road(), cv2x_future_edges)
         # min_dist, min_dist_edge = self.get_shortest_route(cv2x_vehicle.center_pos, non_cv2x_vehicle.center_pos,
         #                                                   non_cv2x_vehicle.get_current_road(), cv2x_future_edges)
@@ -130,8 +130,7 @@ class Simulation:
                                                                            perceived_non_cv2x_vehicle,
                                                                            remaining_perceived_non_cv2x_vehicles,
                                                                            buildings,
-                                                                           self.hyper_params["perception_probability"],
-                                                                           self.hyper_params["per"])
+                                                                           self.hyper_params["perception_probability"])
 
                     if self.hyper_params["estimate_detection_error"]:
                         if p == 1: # cv2x receiver sees object to be sent, then add probability it doesnt sees it!
@@ -260,7 +259,7 @@ class Simulation:
         y = 4
 
         for vehicle in receiver_vehicles:
-            distance = euclidean_distance(tx_pos, vehicle.pos)
+            distance = euclidean_distance(tx_pos, vehicle.get_pos())
             # h_n_k = (distance**-4)*random.random()*np.random.exponential(1)
             tmp = []
             # this approach is canceled as it is more accurate and detailed but related to the exact wavelengths
@@ -374,7 +373,7 @@ class Simulation:
             non_cv2x_vehicles_indexes = list(set(range(len(vehicle_ids))) - set(cv2x_vehicles_indexes))
             # Transform indexes into IDs and vehicles
             cv2x_vehicles = {vehicle_ids[index]:vehicles[vehicle_ids[index]] for index in cv2x_vehicles_indexes}
-            [av.gps_error(self.hyper_params["noise_distance"]) for avid, av in cv2x_vehicles.items()]
+            [av.set_gps_error(self.hyper_params["noise_distance"]) for avid, av in cv2x_vehicles.items()]
             non_cv2x_vehicles = {vehicle_ids[index]:vehicles[vehicle_ids[index]] for index in non_cv2x_vehicles_indexes}
             # print(cv2x_vehicles_indexes)
             show_id = None
@@ -426,7 +425,7 @@ class Simulation:
                                      + "_" + str(self.hyper_params['perception_probability'])
                                      + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
                                      + "_" + str(self.hyper_params["noise_distance"])
-                                     # + ("_egps" if self.hyper_params["noise_distance"] else "_negps")
+                                     + ("_egps" if self.hyper_params["noise_distance"] else "_negps")
                                       + ".png")
             if self.hyper_params["save_visual"]:
                 viz.save_img(save_path)
@@ -490,7 +489,7 @@ class Simulation:
                                      + "_" + str(self.hyper_params['perception_probability'])
                                      + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
                                      + "_" + str(self.hyper_params["noise_distance"])
-                                     # + ("_egps" if self.hyper_params["noise_distance"] else "_negps")
+                                     + ("_egps" if self.hyper_params["noise_distance"] else "_negps")
                                      +".txt")
 
             sent, unsent, selected_messages_requests = solver.find_optimal_assignment(save_path)
@@ -499,7 +498,7 @@ class Simulation:
                 # Save location of objects and their IDs in a file
                 # Save the sender and receiver and objects in another file
                 with open(save_path.replace('results', 'GNSS').replace(".txt",'.pkl'), 'wb') as fw:
-                    pickle.dump(({v:vehicles[v].pos for v in vehicles.keys()}, selected_messages_requests), fw)
+                    pickle.dump(({v:vehicles[v].get_pos() for v in vehicles.keys()}, selected_messages_requests), fw)
 
             with open(save_path, 'a') as fw:
                 fw.write("GNSS Errors:\n")
@@ -513,18 +512,11 @@ class Simulation:
                     # 3- Calculate the new position of the object ==> abs_obj_noisy_pos
                     # 4- Calculate the error between rel_obj_po and rel_obj_noisy_pos
                     # 5- Add noise for detection error
-                    sender_pos = np.array(vehicles[sender_id].pos)
+                    sender_pos = np.array(vehicles[sender_id].get_pos())
                     sender_noisy_pos = move_point(sender_pos, random.randint(0, 360), self.hyper_params["noise_distance"])
                     abs_obj_noisy_pos = get_new_abs_pos(sender_pos, sender_noisy_pos, obj_pos)
 
-                    rel_obj_pos = obj_pos - sender_pos
-                    dir = 1 if random.random() > 0.5 else -1
-                    rel_obj_pos[0] = rel_obj_pos[0] + dir * random.randint(1, 5)/10
-                    dir = 1 if random.random() > 0.5 else -1
-                    rel_obj_pos[1] = rel_obj_pos[1] + dir * random.randint(1, 5)/10
-
-                    abs_obj_noisy_pos = rel_obj_pos + np.array(sender_noisy_pos)
-                    error = np.linalg.norm([abs_obj_noisy_pos - np.array(obj_pos)])
+                    error = np.linalg.norm([np.array(abs_obj_noisy_pos) - np.array(obj_pos)])
                     fw.write(f"{sender_id}, {receiver_id}, {score}, {obj_pos}, {error}\n")
 
                 fw.write("\n")

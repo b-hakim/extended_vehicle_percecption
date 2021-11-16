@@ -69,6 +69,7 @@ class RunSimulationProcess(multiprocessing.Process):
                                         + "_" + str(hyper_params['perception_probability'])
                                         + ("_ede" if hyper_params["estimate_detection_error"] else "_nede")
                                         + "_" + str(hyper_params["noise_distance"])
+                                        + ("_egps" if hyper_params["noise_distance"] else "_negps")
                                         + ".txt")
 
             if os.path.isfile(results_path) and not self.repeat:
@@ -171,12 +172,12 @@ if __name__ == '__main__':
                     maps = [path + map for map in maps]
                     maps.sort(key=lambda x: int(x.split('/')[-1]))
                     for p in maps:
-                        # paths = glob.glob(p+"/result*0.9*.txt")
-                        # for p in paths:
-                        #     os.remove(p)
-                        # paths = glob.glob(p+"/map*0.9*.png")
-                        # for p in paths:
-                        #     os.remove(p)
+                        paths = glob.glob(p+"/result*.txt")
+                        for p in paths:
+                            os.remove(p)
+                        paths = glob.glob(p+"/map*.png")
+                        for p in paths:
+                            os.remove(p)
                         paths = glob.glob(p+"/GNSS*.pkl")
                         for p in paths:
                             os.remove(p)
@@ -195,36 +196,36 @@ if __name__ == '__main__':
         #                tot_num_vehicles=100, perception_probability=0.85, estimate_detection_error=True, use_saved_seed=True)
         # run_simulation(cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100,
         #                tot_num_vehicles=100, perception_probability=1, estimate_detection_error=True, use_saved_seed=True)
-        ####################################################################################################################
-        # run_simulation(cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100,
-        #                tot_num_vehicles=100, perception_probability=1,
-        #                estimate_detection_error=False, use_saved_seed=True, noise_distance=0.1, repeat=False)
-        # run_simulation(cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100,
-        #                tot_num_vehicles=100, perception_probability=1,
-        #                estimate_detection_error=False, use_saved_seed=True, noise_distance=0.5, repeat=False)
-        # run_simulation(cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100,
-        #                tot_num_vehicles=100, perception_probability=1,
-        #                estimate_detection_error=False, use_saved_seed=True, noise_distance=2, repeat=False)
-        # run_simulation(cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100,
-        #                tot_num_vehicles=100, perception_probability=1,
-        #                estimate_detection_error=False, use_saved_seed=True, noise_distance=5, repeat=False)
-        ####################################################################################################################
-        run_simulation(cv2x_percentage=0.65, fov=60, view_range=75, num_RBs=100, tot_num_vehicles=100,
-                       perception_probability=1, estimate_detection_error=False, use_saved_seed=True, save_gnss=False,
-                       noise_distance=0, repeat=False)
-        run_simulation(cv2x_percentage=0.65, fov=90, view_range=75, num_RBs=100, tot_num_vehicles=100,
-                       perception_probability=1, estimate_detection_error=False, use_saved_seed=True, save_gnss=False,
-                       noise_distance=0, repeat=False)
-        run_simulation(cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100, tot_num_vehicles=100,
-                       perception_probability=1, estimate_detection_error=False, use_saved_seed=True, save_gnss=False,
-                       noise_distance=0, repeat=False)
-        run_simulation(cv2x_percentage=0.65, fov=240, view_range=75, num_RBs=100, tot_num_vehicles=100,
-                       perception_probability=1, estimate_detection_error=False, use_saved_seed=True, save_gnss=False,
-                       noise_distance=0, repeat=False)
-        run_simulation(cv2x_percentage=0.65, fov=360, view_range=75, num_RBs=100, tot_num_vehicles=100,
-                       perception_probability=1, estimate_detection_error=False, use_saved_seed=True, save_gnss=False,
-                       noise_distance=0, repeat=False)
-
+        ########################################   GPS  #################################################################
+        run_simulation(cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100,
+                       tot_num_vehicles=100, perception_probability=1,
+                       estimate_detection_error=False, use_saved_seed=True, noise_distance=0.1, repeat=False)
+        run_simulation(cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100,
+                       tot_num_vehicles=100, perception_probability=1,
+                       estimate_detection_error=False, use_saved_seed=True, noise_distance=0.5, repeat=False)
+        run_simulation(cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100,
+                       tot_num_vehicles=100, perception_probability=1,
+                       estimate_detection_error=False, use_saved_seed=True, noise_distance=2, repeat=False)
+        run_simulation(cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100,
+                       tot_num_vehicles=100, perception_probability=1,
+                       estimate_detection_error=False, use_saved_seed=True, noise_distance=5, repeat=False)
+        ######################################    FOV    ################################################################
+        # run_simulation(cv2x_percentage=0.65, fov=60, view_range=75, num_RBs=100, tot_num_vehicles=100,
+        #                perception_probability=1, estimate_detection_error=False, use_saved_seed=True, save_gnss=False,
+        #                noise_distance=0, repeat=False)
+        # run_simulation(cv2x_percentage=0.65, fov=90, view_range=75, num_RBs=100, tot_num_vehicles=100,
+        #                perception_probability=1, estimate_detection_error=False, use_saved_seed=True, save_gnss=False,
+        #                noise_distance=0, repeat=False)
+        # run_simulation(cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100, tot_num_vehicles=100,
+        #                perception_probability=1, estimate_detection_error=False, use_saved_seed=True, save_gnss=False,
+        #                noise_distance=0, repeat=False)
+        # run_simulation(cv2x_percentage=0.65, fov=240, view_range=75, num_RBs=100, tot_num_vehicles=100,
+        #                perception_probability=1, estimate_detection_error=False, use_saved_seed=True, save_gnss=False,
+        #                noise_distance=0, repeat=False)
+        # run_simulation(cv2x_percentage=0.65, fov=360, view_range=75, num_RBs=100, tot_num_vehicles=100,
+        #                perception_probability=1, estimate_detection_error=False, use_saved_seed=True, save_gnss=False,
+        #                noise_distance=0, repeat=False)
+        #
 
         # p = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test"
         # simulation_thread = RunSimulationProcess([p], cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100,
