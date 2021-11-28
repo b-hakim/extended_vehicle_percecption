@@ -3,7 +3,7 @@ from typing import Type
 
 import traci
 
-from math_utils import euclidean_distance, angle_between_two_vectors, get_vector, does_line_intersect_polygon, \
+from math_utils import euclidean_distance, inner_angle_between_two_vectors, get_vector, does_line_intersect_polygon, \
     in_and_near_edge, get_dist_from_to, move_point, get_new_abs_pos
 
 import numpy as np
@@ -146,7 +146,7 @@ class Vehicle:
     def get_current_road(self):
         return traci.vehicle.getRoadID(self.vehicle_id)
 
-    def vehicle_in_sight(self, obstacle_vehicle, destination_vehicle):
+    def vehicle_in_sight(self, obstacle_vehicle, destination_vehicle, gps_error):
         # assert False ## need to find static obstacles to destination
         #intersect between line to destination and obj box
 
@@ -157,10 +157,10 @@ class Vehicle:
         # check if any of these passes through the box of a car, if at least 3 corners are invisible,
         # then it the object occludes the destination
 
-        lines = [list(self.get_pos()) + destination_vehicle_corners[0].tolist(),
-                 list(self.get_pos()) + destination_vehicle_corners[1].tolist(),
-                 list(self.get_pos()) + destination_vehicle_corners[2].tolist(),
-                 list(self.get_pos()) + destination_vehicle_corners[3].tolist()]
+        lines = [list(self.get_pos(gps_error)) + destination_vehicle_corners[0].tolist(),
+                 list(self.get_pos(gps_error)) + destination_vehicle_corners[1].tolist(),
+                 list(self.get_pos(gps_error)) + destination_vehicle_corners[2].tolist(),
+                 list(self.get_pos(gps_error)) + destination_vehicle_corners[3].tolist()]
 
         invisibilities = np.array([does_line_intersect_polygon(line, obstacle_vehicle_corners) for line in lines])
         return np.count_nonzero(invisibilities) >= 3
@@ -195,7 +195,7 @@ class Vehicle:
         #     ])
         return corners
 
-    def can_see_vehicle(self, vehicle, detection_probability=1.0, noise=None):
+    def has_in_perception_range(self, vehicle, gps_error, detection_probability=1.0, noise=None):
         if random.random() > detection_probability:
             return False
 
@@ -206,20 +206,20 @@ class Vehicle:
             vehicle_corners = [get_new_abs_pos(noise[0], noise[1], v) for v in vehicle_corners]
 
         dists = [
-            euclidean_distance(self.get_pos(), vehicle_corners[0]),
-            euclidean_distance(self.get_pos(), vehicle_corners[1]),
-            euclidean_distance(self.get_pos(), vehicle_corners[2]),
-            euclidean_distance(self.get_pos(), vehicle_corners[3])
+            euclidean_distance(self.get_pos(gps_error), vehicle_corners[0]),
+            euclidean_distance(self.get_pos(gps_error), vehicle_corners[1]),
+            euclidean_distance(self.get_pos(gps_error), vehicle_corners[2]),
+            euclidean_distance(self.get_pos(gps_error), vehicle_corners[3])
         ]
 
         if np.array([d > self.viewing_range for d in dists]).all():
             return False
 
         # Second check that the vehicle is in the given FoV
-        angles = [abs(angle_between_two_vectors(self.heading_unit_vector, get_vector(self.get_pos(), vehicle_corners[0]))),
-                  abs(angle_between_two_vectors(self.heading_unit_vector, get_vector(self.get_pos(), vehicle_corners[1]))),
-                  abs(angle_between_two_vectors(self.heading_unit_vector, get_vector(self.get_pos(), vehicle_corners[2]))),
-                  abs(angle_between_two_vectors(self.heading_unit_vector, get_vector(self.get_pos(), vehicle_corners[3])))]
+        angles = [abs(inner_angle_between_two_vectors(self.heading_unit_vector, get_vector(self.get_pos(gps_error), vehicle_corners[0]))),
+                  abs(inner_angle_between_two_vectors(self.heading_unit_vector, get_vector(self.get_pos(gps_error), vehicle_corners[1]))),
+                  abs(inner_angle_between_two_vectors(self.heading_unit_vector, get_vector(self.get_pos(gps_error), vehicle_corners[2]))),
+                  abs(inner_angle_between_two_vectors(self.heading_unit_vector, get_vector(self.get_pos(gps_error), vehicle_corners[3])))]
 
         return np.array([angle <= self.fov / 2 for angle in angles]).any()
 
@@ -234,7 +234,7 @@ class Vehicle:
             return False
 
         # Second check that the vehicle is in the given FoV
-        angles = [abs(angle_between_two_vectors(self.heading_unit_vector, get_vector(self.get_pos(), c)))
+        angles = [abs(inner_angle_between_two_vectors(self.heading_unit_vector, get_vector(self.get_pos(), c)))
                                                                                             for c in building_corners]
 
         return np.array([angle <= self.fov / 2 for angle in angles]).any()
@@ -254,11 +254,11 @@ class Vehicle:
             # return 0.5
 
         # Validate that the vehicle is in the range of cv2x
-        if not receiver.can_see_vehicle(non_cv2x_vehicle, detection_probability=1,
-                                        noise=(self.get_pos(False), self.get_pos())):
+        if not receiver.has_in_perception_range(non_cv2x_vehicle, True, detection_probability=1,
+                                                noise=(self.get_pos(False), self.get_pos())):
             return 0
 
-        if not self.can_see_vehicle(receiver, detection_probability=1):
+        if not self.has_in_perception_range(receiver, True, detection_probability=1):
                 # or not self.can_see_vehicle(non_cv2x_vehicle, perception_probability=1):
             return 0.5
 
@@ -336,17 +336,24 @@ class Vehicle:
 
         return 1
 
-    def building_in_sight(self, building, destination_vehicle):
+    def building_in_sight(self, building, gps_error, destination_vehicle):
         destination_vehicle_corners = destination_vehicle.get_vehicle_boundaries()
 
         # Get a line from my pos to the 4 corners of the destination
         # check if any of these passes through the box of a car, if at least 3 corners are invisible,
         # then the object occludes the destination
 
-        lines = [list(self.get_pos()) + destination_vehicle_corners[0].tolist(),
-                 list(self.get_pos()) + destination_vehicle_corners[1].tolist(),
-                 list(self.get_pos()) + destination_vehicle_corners[2].tolist(),
-                 list(self.get_pos()) + destination_vehicle_corners[3].tolist()]
+        lines = [list(self.get_pos(gps_error)) + destination_vehicle_corners[0].tolist(),
+                 list(self.get_pos(gps_error)) + destination_vehicle_corners[1].tolist(),
+                 list(self.get_pos(gps_error)) + destination_vehicle_corners[2].tolist(),
+                 list(self.get_pos(gps_error)) + destination_vehicle_corners[3].tolist()]
 
         invisibilities = np.array([does_line_intersect_polygon(line, building) for line in lines])
         return np.count_nonzero(invisibilities) >= 3
+
+if __name__ == '__main__':
+    heading_unit_vector = [0, 1]
+    a1 = inner_angle_between_two_vectors(heading_unit_vector, get_vector([0, 0], [4, -2]))
+    a2 = inner_angle_between_two_vectors(get_vector([0, 0], [4, -2]), heading_unit_vector)
+    print(a1, a2)
+    x=1

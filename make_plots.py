@@ -1,15 +1,28 @@
 import os
+
 import numpy as np
 import matplotlib.pyplot as plt
 
+import enum
 
-def verify_results_exists(path, cv2x_percentage=0.35, fov=120, view_range=75, num_RBs=20, tot_num_vehicles=150, time_threshold=10):
+
+class SIMULATION_TYPE(enum.Enum):
+    DETECTION=0,
+    FOV=1,
+    GPS=2
+
+
+def verify_results_exists(path, cv2x_percentage=0.35, fov=120, view_range=75, num_RBs=20, tot_num_vehicles=150,
+                          time_threshold=10,  perception_probability=1, estimate_detection_error=False,
+                          noise_distance=None):
     # loop on all files
     # print un-existing results file
 
     scenarios_dirs = os.listdir(path)
+    scenarios_dirs.sort()
+    scenarios_dirs = scenarios_dirs[:3]
 
-    if len(scenarios_dirs) == 10:
+    if len(scenarios_dirs) == 3:
         scenarios_dirs = [[path+"/"+p+"/"+pp for pp in os.listdir(path+"/"+p)] for p in scenarios_dirs]
         scenarios_dirs = np.array(scenarios_dirs).reshape(-1).tolist()
 
@@ -23,17 +36,21 @@ def verify_results_exists(path, cv2x_percentage=0.35, fov=120, view_range=75, nu
                                      + "_" + str(num_RBs)
                                      + "_" + str(tot_num_vehicles)
                                      + "_" + str(time_threshold)
-                                     + ".txt")
+                                    + "_" + str(perception_probability)
+                                    + ("_ede" if estimate_detection_error else "_nede")
+                                    + "_" + str(noise_distance)
+                                    + ("_egps" if noise_distance!=0 else "")
+                                    + ".txt")
         if not os.path.isfile(results_path):
             print("Missing:", results_path)
 
 
-def save_plot(path, cv2x_percentage=0.35, fov=120, view_range=75, num_RBs=20, tot_num_vehicles=150, time_threshold=10,
-              perception_probability=1, estimate_detection_error=False, noise_distance=None):
-    # loop on all files
-    # read results file
-    # parse required data
-    # save & show plots
+def save_plot(path, results_summary_dir, cv2x_percentage=0.35, fov=120, view_range=75, num_RBs=20, tot_num_vehicles=150, time_threshold=10,
+              perception_probability=1, estimate_detection_error=False, noise_distance=0, experiment_type=None):
+
+    if not os.path.isdir(results_summary_dir):
+        os.makedirs(results_summary_dir)
+
     scenarios_dirs = os.listdir(path)
 
     if len(scenarios_dirs) == 10:
@@ -51,9 +68,14 @@ def save_plot(path, cv2x_percentage=0.35, fov=120, view_range=75, num_RBs=20, to
     avg_unsent = 0
     avg_perceived = 0
     avg_objective_value = 0
+    avg_total_objective_value=0
     avg_visible_objects = 0
-    avg_perceived_sent = 0
-    avg_visible_sent = 0
+    avg_perceived_considered_sending = 0
+    avg_perceived_sent_to_BS = 0
+    avg_visible_considered_sending = 0
+    avg_visible_sent_to_BS = 0
+    avg_correct_los, avg_correct_nlos, avg_incorrect_los,\
+                        avg_incorrect_nlos, avg_unsure_los, avg_unsure_nlos = 0, 0, 0, 0, 0, 0
     count = 0
 
     sent_y = []
@@ -73,16 +95,19 @@ def save_plot(path, cv2x_percentage=0.35, fov=120, view_range=75, num_RBs=20, to
                                      + "_" + str(time_threshold)
                                      + "_" + str(perception_probability)
                                     + ("_ede" if estimate_detection_error else "_nede")
+                                    + "_" + str(noise_distance)
+                                    + ("_egps" if noise_distance!=0 else "")
                                     + ".txt")
 
         # print(results_path, os.path.isfile(results_path))
         with open(results_path) as fr:
             lines = fr.readlines()
 
-        sent = 0
 
         for i, line in enumerate(lines):
-            if line.find("Objective value") != -1:
+            if line.find("Sum Requests scores") != -1:
+                avg_total_objective_value += float(line.split(" = ")[1])
+            elif line.find("Objective value") != -1:
                 avg_objective_value += float(line.split(" = ")[1])
             elif line.find("Total Duplicate Requests") != -1:
                 avg_req += int(lines[i].split(": ")[1])
@@ -90,25 +115,36 @@ def save_plot(path, cv2x_percentage=0.35, fov=120, view_range=75, num_RBs=20, to
                 avg_dup += int(lines[i].split(": ")[1]) - int(lines[i+1].split(": ")[1])
 
                 avg_sent += int(lines[i+2].split(": ")[1])
-                sent = int(lines[i+2].split(": ")[1])
                 avg_unsent += int(lines[i+3].split(": ")[1])
                 avg_perceived += int(lines[i+4].split(": ")[1])
                 avg_visible_objects += int(lines[i+5].split(": ")[1])
-                avg_perceived_sent += int(lines[i+6].split(": ")[1])
-                avg_visible_sent += int(lines[i+7].split(": ")[1])
+                avg_perceived_considered_sending += int(lines[i+6].split(": ")[1])
+                avg_perceived_sent_to_BS += int(lines[i+7].split(": ")[1])
+                avg_visible_considered_sending += int(lines[i+8].split(": ")[1])
+                avg_visible_sent_to_BS += int(lines[i+9].split(": ")[1])
+                avg_correct_los += int(lines[i+10].split(": ")[1])
+                avg_correct_nlos += int(lines[i+11].split(": ")[1])
+                avg_incorrect_los += int(lines[i+12].split(": ")[1])
+                avg_incorrect_nlos += int(lines[i+13].split(": ")[1])
+                avg_unsure_los += int(lines[i+14].split(": ")[1])
+                avg_unsure_nlos += int(lines[i+15].split(": ")[1])
 
                 count += 1
                 break
 
         # sent_y.append(avg_sent/count)
         visible_objects_y.append(avg_visible_objects/count)
-        perceived_sent_y.append(avg_perceived_sent/count)
-        visible_sent_y.append(avg_visible_sent/count)
+        perceived_sent_y.append(avg_perceived_considered_sending/count)
+        visible_sent_y.append(avg_visible_considered_sending/count)
         # percentage_sent_seen_y.append(100*(avg_sent/count)/(avg_perceived/count))
 
-    summary_name = f"results_summary/summary_{cv2x_percentage}_{num_RBs}_{perception_probability}" \
-                   f"_{'_ede' if estimate_detection_error else '_nede'}.txt"
-
+    if experiment_type==SIMULATION_TYPE.DETECTION:
+        summary_name = f"{results_summary_dir}/summary_{cv2x_percentage}_{num_RBs}_{perception_probability}" \
+                       f"_{'_ede' if estimate_detection_error else '_nede'}.txt"
+    elif experiment_type==SIMULATION_TYPE.FOV:
+        summary_name = f"{results_summary_dir}/summary_{cv2x_percentage}_{num_RBs}_{fov}.txt"
+    elif experiment_type==SIMULATION_TYPE.GPS:
+        summary_name = f"{results_summary_dir}/summary_{cv2x_percentage}_{num_RBs}_{noise_distance}.txt"
 
     # plt.figure()
     # plt.plot(x, sent_y)
@@ -147,41 +183,59 @@ def save_plot(path, cv2x_percentage=0.35, fov=120, view_range=75, num_RBs=20, to
     # plt.show()
     plt.savefig(summary_name.replace("txt", "png").replace("/summary", "/visible_sent"))
 
-    print("***  " + str(cv2x_percentage) + " - " + str(num_RBs) + "  ***")
-    print("avg_req: ", np.round(avg_req/count))
-    print("avg_uniq: ", np.round(avg_uniq/count))
-    print("avg_dup: ", np.round(avg_dup/count))
-    print("avg_sent: ", np.round(avg_sent/count))
-    print("avg unsent", np.round(avg_unsent/count))
-    print("perc_duplicate/tot_req: " + str(np.round(100 * (avg_dup) / (avg_req), 1)))
-    print("perc_sent/unique: " + str(np.round(avg_sent / avg_uniq, 1)))
-    print("avg perceived", np.round(avg_perceived/count))
-    print("avg sent/perceived", np.round(100*(avg_sent/count)/(avg_perceived/count)))
-    print("avg_obj_value: ", np.round(avg_objective_value/count))
-    print("avg_visible_objects: ", np.round(avg_visible_objects/count))
-    print("avg_perceived_sent: ", np.round(avg_perceived_sent/count))
-    print("avg_visible_sent: ", np.round(avg_visible_sent/count))
-    print()
+    print("***  " + str(cv2x_percentage) + " - " + str(num_RBs) + "  ***\n"
+           "Total # Requests: " + str(np.round(avg_req / count, 2)),
+            "\n# Unique Requests: " + str(np.round(avg_uniq / count, 2)),
+            "\n# Duplicate Requests: " + str(np.round(avg_dup / count, 2)),
+            "\n# Requests Sent by BS: " + str(np.round(avg_sent / count, 2)),
+            "\n# Requests Unsent by BS: " + str(np.round(avg_unsent / count, 2)),
+            "\n% Duplicate Requests Relative to Total Requests: " + str(np.round(100 * avg_dup / avg_req, 1)),
+            "\n% Sent Requests Relative to Unique Requests: " + str(np.round(100 * avg_sent / avg_uniq, 1)),
+            "\n# Perceived non-av vehicles using Sensors: " + str(np.round(avg_perceived / count, 2)),
+            "\n% Sent requests by BS relative to the perceived vehicles: " + str(np.round(100 * (avg_sent / count) / (avg_perceived / count), 1)),
+            "\nObjective Value: " + str(np.round((avg_objective_value / count), 2)),
+            "\nTotal Requests Objective Value: " + str(np.round((avg_total_objective_value / count), 2)),
+            "\n% Objective Value executed: " + str(np.round(100 * (avg_objective_value / count) / (avg_total_objective_value / count), 2)),
+            "\n# Visible Non-AV but Not Perceived: " + str(np.round((avg_visible_objects / count - avg_perceived / count), 2)),
+            "\n# Perceived objects considered to send to BS: " + str(np.round((avg_perceived_considered_sending / count), 2)),
+            "\n# Perceived objects actually sent to BS: " + str(np.round((avg_perceived_sent_to_BS / count), 2)),
+            "\n# Visible objects but Not Perceived and considered to send to BS: " + str(np.round((avg_visible_considered_sending / count), 2)),
+            "\n# Visible objects but Not Perceived and actually sent to BS: " + str(np.round((avg_visible_sent_to_BS/ count), 2)),
+            "\n# Correct LoS: " + str(np.round((avg_correct_los/ count), 2)),
+            "\n# Correct NLoS: " + str(np.round((avg_correct_nlos/ count), 2)),
+            "\n# Incorrect LoS: " + str(np.round((avg_incorrect_los/ count), 2)),
+            "\n# Incorrect NLoS: " + str(np.round((avg_incorrect_nlos/ count), 2)),
+            "\n# LoS = 0.5: " + str(np.round((avg_unsure_los/ count), 2)),
+            "\n# NLoS = 0.5: " + str(np.round((avg_unsure_nlos/ count), 2)),
+          "\n")
 
     plt.close()
 
     with open(summary_name, 'w') as fw:
         fw.writelines([
-            "avg_req: " + str(np.round(avg_req / count, 2)),
-            "\navg_uniq: " + str(np.round(avg_uniq / count, 2)),
-            "\navg_dup: " + str(np.round(avg_dup / count, 2)),
-            "\navg_sent: " + str(np.round(avg_sent / count, 2)),
-
-            "\nperc_duplicate/tot_req: " + str(np.round(100*avg_dup/avg_req, 1)),
-            "\nperc_sent/unique: " + str(np.round(100*avg_sent / avg_uniq, 1)),
-
-            "\navg unsent: " + str(np.round(avg_unsent / count, 2)),
-            "\navg perceived: " + str(np.round(avg_perceived / count, 2)),
-            "\navg seen/perceived: " + str(np.round(100*(avg_sent / count) / (avg_perceived / count), 1)),
-            "\navg objective value: " + str(np.round((avg_objective_value/ count) , 2)),
-            "\navg perceived + visible objects: " + str(np.round((avg_visible_objects/ count - avg_perceived / count) , 2)),
-            "\navg perceived and sent: " + str(np.round((avg_perceived_sent/ count) , 2)),
-            "\navg not perceived but visible and sent: " + str(np.round((avg_visible_sent/ count) , 2)),
+            "Total # Requests: " + str(np.round(avg_req / count, 2)),
+            "\n# Unique Requests: " + str(np.round(avg_uniq / count, 2)),
+            "\n# Duplicate Requests: " + str(np.round(avg_dup / count, 2)),
+            "\n# Requests Sent by BS: " + str(np.round(avg_sent / count, 2)),
+            "\n# Requests Unsent by BS: " + str(np.round(avg_unsent / count, 2)),
+            "\n% Duplicate Requests Relative to Total Requests: " + str(np.round(100 * avg_dup / avg_req, 1)),
+            "\n% Sent Requests Relative to Unique Requests: " + str(np.round(100 * avg_sent / avg_uniq, 1)),
+            "\n# Perceived non-av vehicles using Sensors: " + str(np.round(avg_perceived / count, 2)),
+            "\n% Sent requests by BS relative to the perceived vehicles: " + str(np.round(100 * (avg_sent / count) / (avg_perceived / count), 1)),
+            "\nObjective Value: " + str(np.round((avg_objective_value / count), 2)),
+            "\nTotal Requests Objective Value: " + str(np.round((avg_total_objective_value / count), 2)),
+            "\n% Objective Value executed: " + str(np.round(100 * (avg_objective_value / count) / (avg_total_objective_value / count), 2)),
+            "\n# Visible Non-AV but Not Perceived: " + str(np.round((avg_visible_objects / count - avg_perceived / count), 2)),
+            "\n# Perceived objects considered to send to BS: " + str(np.round((avg_perceived_considered_sending / count), 2)),
+            "\n# Perceived objects actually sent to BS: " + str(np.round((avg_perceived_sent_to_BS / count), 2)),
+            "\n# Visible objects but Not Perceived and considered to send to BS: " + str(np.round((avg_visible_considered_sending / count), 2)),
+            "\n# Visible objects but Not Perceived and actually sent to BS: " + str(np.round((avg_visible_sent_to_BS/ count), 2)),
+            "\n# Correct LoS: " + str(np.round((avg_correct_los / count), 2)),
+            "\n# Correct NLoS: " + str(np.round((avg_correct_nlos / count), 2)),
+            "\n# Incorrect LoS: " + str(np.round((avg_incorrect_los / count), 2)),
+            "\n# Incorrect NLoS: " + str(np.round((avg_incorrect_nlos / count), 2)),
+            "\n# LoS = 0.5: " + str(np.round((avg_unsure_los / count), 2)),
+            "\n# NLoS = 0.5: " + str(np.round((avg_unsure_nlos / count), 2)),
         ])
 
 
@@ -335,13 +389,35 @@ if __name__ == '__main__':
     # plot_summary_sent_messages()
     # plot_summary_avg_objective_value()
     # plot_summary_additional_perceived_information()
-    # for i in range(3):
-    for perception_probability in [1, 0.9, 0.85]:
-        for estimate_detection_error in [True, False]:
-            save_plot(f'/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto/',
-                          cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100,
-                          tot_num_vehicles=100, time_threshold=10, perception_probability=perception_probability,
-                          estimate_detection_error=estimate_detection_error, noise_distance=None)
+    ###########################################    Detection    ########################################################
+    # for perception_probability in [1, 0.9, 0.85]:
+    #     for estimate_detection_error in [True, False]:
+    #         save_plot(f'/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto/',
+    #                       cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100,
+    #                       tot_num_vehicles=100, time_threshold=10, perception_probability=perception_probability,
+    #                       estimate_detection_error=estimate_detection_error, noise_distance=None)
+    # ###########################################     FOV    ###########################################################
+    # for fov in [60, 90, 120, 240, 360]:
+    #     # verify_results_exists(f'/media/bassel/E256341D5633F0C1/toronto_fov/toronto', cv2x_percentage=0.65, fov=fov, view_range=75,
+    #     #           num_RBs=100, tot_num_vehicles=100, time_threshold=10, perception_probability=1,
+    #     #           estimate_detection_error=False, noise_distance=0)
+    #     save_plot(f'/media/bassel/E256341D5633F0C1/toronto_fov/toronto',
+    #               f'/media/bassel/E256341D5633F0C1/toronto_fov/results_summary',
+    #               cv2x_percentage=0.65, fov=fov, view_range=75,
+    #               num_RBs=100, tot_num_vehicles=100, time_threshold=10, perception_probability=1,
+    #               estimate_detection_error=False, noise_distance=0, experiment_type=SIMULATION_TYPE.FOV)
+    ############################################     GPS    ############################################################
+    for noise in [0, 0.1, 0.5, 2, 5]:
+        # verify_results_exists(f'/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto', cv2x_percentage=0.65, fov=120,
+        #                       view_range=75, num_RBs=100, tot_num_vehicles=100, time_threshold=10,
+        #                       perception_probability=1, estimate_detection_error=False, noise_distance=noise)
+        save_plot(f'/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto',
+                  f'/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/results_summary',
+                  cv2x_percentage=0.65, fov=120, view_range=75,
+                  num_RBs=100, tot_num_vehicles=100, time_threshold=10, perception_probability=1,
+                  estimate_detection_error=False, noise_distance=noise, experiment_type=SIMULATION_TYPE.GPS)
+    ####################################################################################################################
+
     # save_plot('/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto/toronto_0',
     #           cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=20, tot_num_vehicles=100, time_threshold=10)
 

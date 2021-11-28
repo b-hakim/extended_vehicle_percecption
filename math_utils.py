@@ -13,9 +13,20 @@ def euclidean_distance(p1, p2):
     return np.linalg.norm(p1-p2)
 
 
+def inner_angle_between_two_vectors(v1, v2):
+    angle1 = angle_between_two_vectors(v1, v2)
+    angle2 = angle_between_two_vectors(v2, v1)
+
+    return angle1 if angle1 < angle2 else angle2
+
+
 def angle_between_two_vectors(v1, v2):
     angle = np.arctan2(np.cross(v1, v2), np.dot(v1, v2))
     angle = np.rad2deg(angle)
+
+    if angle < 0:
+        angle += 360
+
     return angle
 
 

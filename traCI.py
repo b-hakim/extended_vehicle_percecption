@@ -48,11 +48,11 @@ class Simulation:
 
         for cv2x_vehicle in cv2x_vehicles:
             for non_cv2x_vehicle in non_cv2x_vehicles:
-                if cv2x_vehicle.can_see_vehicle(non_cv2x_vehicle, detection_probability=1):
+                if cv2x_vehicle.has_in_perception_range(non_cv2x_vehicle, False, detection_probability=1):
                     is_occluded = False
 
                     for building in buildings:
-                        if cv2x_vehicle.building_in_sight(building.shape, non_cv2x_vehicle):
+                        if cv2x_vehicle.building_in_sight(building.shape, False, non_cv2x_vehicle):
                             is_occluded = True
                             break
 
@@ -60,12 +60,12 @@ class Simulation:
                         for non_cv2x_obstacle_vehicle in non_cv2x_vehicles+cv2x_vehicles:
                             if non_cv2x_obstacle_vehicle.vehicle_id != non_cv2x_vehicle.vehicle_id and \
                                     non_cv2x_obstacle_vehicle.vehicle_id != cv2x_vehicle.vehicle_id:
-                                if cv2x_vehicle.vehicle_in_sight(non_cv2x_obstacle_vehicle, non_cv2x_vehicle):
+                                if cv2x_vehicle.vehicle_in_sight(non_cv2x_obstacle_vehicle, non_cv2x_vehicle, False):
                                     is_occluded = True
                                     break
 
                     if not is_occluded:
-                        if cv2x_vehicle.can_see_vehicle(non_cv2x_vehicle, self.hyper_params["perception_probability"]):
+                        if cv2x_vehicle.has_in_perception_range(non_cv2x_vehicle, False, self.hyper_params["perception_probability"]):
                             if cv2x_vehicle.vehicle_id in cv2x_vehicles_perception:
                                 cv2x_vehicles_perception[cv2x_vehicle.vehicle_id].append(non_cv2x_vehicle.vehicle_id)
                             else:
@@ -110,6 +110,9 @@ class Simulation:
     def calculate_scores_per_cv2x(self, cv2x_perceived_non_cv2x_vehicles,
                                   cv2x_vehicles, non_cv2x_vehicles,
                                   buildings, time_threshold):
+        correct_los, correct_nlos, unsure_los, unsure_nlos = 0, 0, 0, 0
+        incorrect_los, incorrect_nlos = 0, 0
+
         cv2x_ids = list(cv2x_vehicles.keys())
         scores_per_cv2x = {}
 
@@ -132,6 +135,35 @@ class Simulation:
                                                                            buildings,
                                                                            self.hyper_params["perception_probability"])
 
+                    if p == 1:
+                        # if sender sees that LOS between receiver and perceived_obj and is LOS then correct LOS ++
+                        # if sender sees that LOS between receiver and perceived_obj and is NLOS then incorrect LOS ++
+                        if receiver_cv2x_id in cv2x_perceived_non_cv2x_vehicles:
+                            if perceived_non_cv2x_id in cv2x_perceived_non_cv2x_vehicles[receiver_cv2x_id]:
+                                correct_los += 1
+                            else:
+                                incorrect_los += 1
+                        else:
+                            incorrect_los += 1
+                    elif p == 0.5:
+                        if receiver_cv2x_id in cv2x_perceived_non_cv2x_vehicles:
+                            if perceived_non_cv2x_id in cv2x_perceived_non_cv2x_vehicles[receiver_cv2x_id]:
+                                unsure_los += 1
+                            else:
+                                unsure_nlos += 1
+                        else:
+                            unsure_nlos += 1
+                    elif p == 0:
+                        # if sender sees that NLOS between receiver and perceived_obj and is NLOS then correct NLOS ++
+                        # if sender sees that NLOS between receiver and perceived_obj and is LOS then incorrect NLOS ++
+                        if receiver_cv2x_id in cv2x_perceived_non_cv2x_vehicles:
+                            if perceived_non_cv2x_id in cv2x_perceived_non_cv2x_vehicles[receiver_cv2x_id]:
+                                incorrect_nlos += 1
+                            else:
+                                correct_nlos += 1
+                        else:
+                            correct_nlos += 1
+
                     if self.hyper_params["estimate_detection_error"]:
                         if p == 1: # cv2x receiver sees object to be sent, then add probability it doesnt sees it!
                             if random.random() > self.hyper_params["perception_probability"]: # probably receiver doesnt see it!
@@ -148,7 +180,7 @@ class Simulation:
                                        perceived_non_cv2x_vehicle))
 
             scores_per_cv2x[sender_cv2x_id] = scores
-        return scores_per_cv2x
+        return scores_per_cv2x, [correct_los, correct_nlos, incorrect_los, incorrect_nlos, unsure_los, unsure_nlos]
 
     def get_shortest_route(self, cv2x_veh_pos, noncv2x_veh_pos, non_cv2x_edge, list_destination_edges):
         min_distance = 100000000000
@@ -425,39 +457,40 @@ class Simulation:
                                      + "_" + str(self.hyper_params['perception_probability'])
                                      + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
                                      + "_" + str(self.hyper_params["noise_distance"])
-                                     + ("_egps" if self.hyper_params["noise_distance"] else "_negps")
-                                      + ".png")
+                                     + ("_egps" if self.hyper_params["noise_distance"] != 0 else "")
+                                     + ".png")
             if self.hyper_params["save_visual"]:
                 viz.save_img(save_path)
 
             # 3) Solve which info to send to base station
             # 3.1) Calculate required information
-            scores_per_cv2x = self.calculate_scores_per_cv2x(cv2x_perceived_non_cv2x_vehicles, cv2x_vehicles, non_cv2x_vehicles,
+            scores_per_cv2x, los_statuses = self.calculate_scores_per_cv2x(cv2x_perceived_non_cv2x_vehicles, cv2x_vehicles, non_cv2x_vehicles,
                                                              buildings, self.hyper_params['time_threshold'])
             # Count number of perceived
-            perceived_but_sent_vehicle = 0
-            not_perceived_but_visible_sent_vehicle = 0
+            perceived_but_considered_to_send = 0
+            not_perceived_but_visible_considered_to_send = 0
 
             for sender_cv2x_id, scores in scores_per_cv2x.items():
                 for (receiver_id, score, perceived_non_cv2x_vehicle) in scores:
                     perceived = False
-                    if receiver_id in cv2x_perceived_non_cv2x_vehicles:
-                        if score != 0:
-                            # means there is an interest in this object, meaning it is not believed
-                            # to be seen by the receiver (and not the case of not seen but interest
-                            # cause it is verified to be seen in this if)
+                    if score != 0:
+                        if receiver_id in cv2x_perceived_non_cv2x_vehicles:
+                            # Sender does not believed the receiver sees the object cause of the score
+                            # However, it is seen by the receiver
                             perceived_non_cv2x_vehicles = cv2x_perceived_non_cv2x_vehicles[receiver_id]
 
                             if perceived_non_cv2x_vehicle.vehicle_id in perceived_non_cv2x_vehicles:
-                                perceived_but_sent_vehicle += 1
+                                perceived_but_considered_to_send += 1
                                 perceived = True
 
-                    if receiver_id in cv2x_vehicles_perception_visible and not perceived:
-                        visible_non_cv2x_vehicles = cv2x_vehicles_perception_visible[receiver_id]
+                        if receiver_id in cv2x_vehicles_perception_visible and not perceived:
+                            visible_non_cv2x_vehicles = cv2x_vehicles_perception_visible[receiver_id]
 
-                        if perceived_non_cv2x_vehicle.vehicle_id in visible_non_cv2x_vehicles:
-                            if score != 0:
-                                not_perceived_but_visible_sent_vehicle += 1
+                            if perceived_non_cv2x_vehicle.vehicle_id in visible_non_cv2x_vehicles:
+                                # Sender does not believed the receiver sees the objectit
+                                # It is not perceived by the receiver
+                                # However, it is visible to the receiver --> due to detection or gps error!
+                                not_perceived_but_visible_considered_to_send += 1
 
             # 3.2) Get Highest Score for each cv2x vehicle
             score_per_cv2x = {cv2x: max(scores, key=lambda x: x[1]) for cv2x, scores in scores_per_cv2x.items()}
@@ -489,16 +522,58 @@ class Simulation:
                                      + "_" + str(self.hyper_params['perception_probability'])
                                      + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
                                      + "_" + str(self.hyper_params["noise_distance"])
-                                     + ("_egps" if self.hyper_params["noise_distance"] else "_negps")
+                                     + ("_egps" if self.hyper_params["noise_distance"] != 0 else "")
                                      +".txt")
 
             sent, unsent, selected_messages_requests = solver.find_optimal_assignment(save_path)
+            # selected_messages_requests >> [sender, receiver, score, non_cv2x_pos]
 
             if self.hyper_params["save_gnss"]:
                 # Save location of objects and their IDs in a file
                 # Save the sender and receiver and objects in another file
                 with open(save_path.replace('results', 'GNSS').replace(".txt",'.pkl'), 'wb') as fw:
                     pickle.dump(({v:vehicles[v].get_pos() for v in vehicles.keys()}, selected_messages_requests), fw)
+
+            perceived_but_sent_to_BS = 0
+            not_perceived_but_visible_sent_to_BS = 0
+
+            for (msg_sender_id, [msg_receiver_id, m_s, msg_obj_pos]) in selected_messages_requests:
+                msg_found = False
+
+                for sender_cv2x_id, scores in scores_per_cv2x.items():
+                    if sender_cv2x_id != msg_sender_id:
+                        continue
+
+                    for (receiver_id, score, perceived_non_cv2x_vehicle) in scores:
+                        pos = perceived_non_cv2x_vehicle.get_pos()
+                        if receiver_id != msg_receiver_id or \
+                                (pos[0] - msg_obj_pos[0] > 0.0001 and pos[1] - msg_obj_pos[1] > 0.0001):
+                            continue
+
+                        perceived = False
+
+                        if receiver_id in cv2x_perceived_non_cv2x_vehicles:
+                            # Sender does not believed the receiver sees the object cause of the score
+                            # However, it is seen by the receiver
+                            perceived_non_cv2x_vehicles = cv2x_perceived_non_cv2x_vehicles[receiver_id]
+
+                            if perceived_non_cv2x_vehicle.vehicle_id in perceived_non_cv2x_vehicles:
+                                perceived_but_sent_to_BS += 1
+                                perceived = True
+
+                        if receiver_id in cv2x_vehicles_perception_visible and not perceived:
+                            if perceived_non_cv2x_vehicle.vehicle_id in visible_non_cv2x_vehicles:
+                                # Sender does not believed the receiver sees the objectit
+                                # It is not perceived by the receiver
+                                # However, it is visible to the receiver --> due to detection or gps error!
+                                visible_non_cv2x_vehicles = cv2x_vehicles_perception_visible[receiver_id]
+                                not_perceived_but_visible_sent_to_BS += 1
+
+                        msg_found = True
+                        break
+
+                    if msg_found:
+                        break
 
             with open(save_path, 'a') as fw:
                 fw.write("GNSS Errors:\n")
@@ -530,8 +605,16 @@ class Simulation:
                          + "\nUnsent: " + str(unsent)
                          + "\nPerceived Vehicles: " + str(tot_perceived_objects)
                          + "\nVisible Vehicles: " + str(tot_visible_objects)
-                         + "\nPerceived But Sent by Vehicles: " + str(perceived_but_sent_vehicle)
-                         + "\nNot Perceived but visible and Sent by Vehicle: " + str(not_perceived_but_visible_sent_vehicle)
+                         + "\nPerceived But considered sending to BS: " + str(perceived_but_considered_to_send)
+                         + "\nPerceived But Sent to BS: " + str(perceived_but_sent_to_BS)
+                         + "\nNot Perceived but visible and considered sending to BS: " + str(not_perceived_but_visible_considered_to_send)
+                         + "\nNot Perceived but visible and Sent to BS: " + str(not_perceived_but_visible_considered_to_send)
+                         + "\nCorrect LoS: " + str(los_statuses[0])
+                         + "\nIncorrect LoS: " + str(los_statuses[1])
+                         + "\nCorrect NLoS: " + str(los_statuses[2])
+                         + "\nIncorrect NLoS: " + str(los_statuses[3])
+                         + "\nUnsure LoS: " + str(los_statuses[4])
+                         + "\nUnsure NLoS: " + str(los_statuses[5])
                          )
 
             break
@@ -542,6 +625,7 @@ class Simulation:
         # input("Simulation ended, close GUI?")
         print(f"Simulation #{self.sim_id} terminated!")#, scores_per_cv2x.items())
         traci.close()
+
 
 
 if __name__ == '__main__':
