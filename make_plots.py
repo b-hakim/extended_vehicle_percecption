@@ -72,8 +72,11 @@ def save_plot(path, results_summary_dir, cv2x_percentage=0.35, fov=120, view_ran
     avg_visible_objects = 0
     avg_perceived_considered_sending = 0
     avg_perceived_sent_to_BS = 0
+    avg_perceived_sent_by_BS = 0
     avg_visible_considered_sending = 0
     avg_visible_sent_to_BS = 0
+    avg_visible_sent_by_BS = 0
+
     avg_correct_los, avg_correct_nlos, avg_incorrect_los,\
                         avg_incorrect_nlos, avg_unsure_los, avg_unsure_nlos = 0, 0, 0, 0, 0, 0
     count = 0
@@ -120,14 +123,17 @@ def save_plot(path, results_summary_dir, cv2x_percentage=0.35, fov=120, view_ran
                 avg_visible_objects += int(lines[i+5].split(": ")[1])
                 avg_perceived_considered_sending += int(lines[i+6].split(": ")[1])
                 avg_perceived_sent_to_BS += int(lines[i+7].split(": ")[1])
-                avg_visible_considered_sending += int(lines[i+8].split(": ")[1])
-                avg_visible_sent_to_BS += int(lines[i+9].split(": ")[1])
-                avg_correct_los += int(lines[i+10].split(": ")[1])
-                avg_correct_nlos += int(lines[i+11].split(": ")[1])
-                avg_incorrect_los += int(lines[i+12].split(": ")[1])
-                avg_incorrect_nlos += int(lines[i+13].split(": ")[1])
-                avg_unsure_los += int(lines[i+14].split(": ")[1])
-                avg_unsure_nlos += int(lines[i+15].split(": ")[1])
+                avg_perceived_sent_by_BS += int(lines[i+8].split(": ")[1])
+                avg_visible_considered_sending += int(lines[i+9].split(": ")[1])
+                avg_visible_sent_to_BS += int(lines[i+10].split(": ")[1])
+                avg_visible_sent_by_BS += int(lines[i+11].split(": ")[1])
+                avg_correct_los += int(lines[i+12].split(": ")[1])
+                avg_correct_nlos += int(lines[i+13].split(": ")[1])
+                avg_incorrect_los += int(lines[i+14].split(": ")[1])
+                avg_incorrect_nlos += int(lines[i+15].split(": ")[1])
+                avg_unsure_los += int(lines[i+16].split(": ")[1])
+                avg_unsure_nlos += int(lines[i+17].split(": ")[1])
+                # [correct_los, correct_nlos, incorrect_los, incorrect_nlos, unsure_los, unsure_nlos]
 
                 count += 1
                 break
@@ -198,9 +204,9 @@ def save_plot(path, results_summary_dir, cv2x_percentage=0.35, fov=120, view_ran
             "\n% Objective Value executed: " + str(np.round(100 * (avg_objective_value / count) / (avg_total_objective_value / count), 2)),
             "\n# Visible Non-AV but Not Perceived: " + str(np.round((avg_visible_objects / count - avg_perceived / count), 2)),
             "\n# Perceived objects considered to send to BS: " + str(np.round((avg_perceived_considered_sending / count), 2)),
-            "\n# Perceived objects actually sent to BS: " + str(np.round((avg_perceived_sent_to_BS / count), 2)),
+            "\n# Perceived objects actually sent by BS: " + str(np.round((avg_perceived_sent_by_BS / count), 2)),
             "\n# Visible objects but Not Perceived and considered to send to BS: " + str(np.round((avg_visible_considered_sending / count), 2)),
-            "\n# Visible objects but Not Perceived and actually sent to BS: " + str(np.round((avg_visible_sent_to_BS/ count), 2)),
+            "\n# Visible objects but Not Perceived and actually sent by BS: " + str(np.round((avg_visible_sent_by_BS/ count), 2)),
             "\n# Correct LoS: " + str(np.round((avg_correct_los/ count), 2)),
             "\n# Correct NLoS: " + str(np.round((avg_correct_nlos/ count), 2)),
             "\n# Incorrect LoS: " + str(np.round((avg_incorrect_los/ count), 2)),
@@ -227,16 +233,17 @@ def save_plot(path, results_summary_dir, cv2x_percentage=0.35, fov=120, view_ran
             "\n% Objective Value executed: " + str(np.round(100 * (avg_objective_value / count) / (avg_total_objective_value / count), 2)),
             "\n# Visible Non-AV but Not Perceived: " + str(np.round((avg_visible_objects / count - avg_perceived / count), 2)),
             "\n# Perceived objects considered to send to BS: " + str(np.round((avg_perceived_considered_sending / count), 2)),
-            "\n# Perceived objects actually sent to BS: " + str(np.round((avg_perceived_sent_to_BS / count), 2)),
+            "\n# Perceived objects actually sent by BS: " + str(np.round((avg_perceived_sent_by_BS / count), 2)),
             "\n# Visible objects but Not Perceived and considered to send to BS: " + str(np.round((avg_visible_considered_sending / count), 2)),
-            "\n# Visible objects but Not Perceived and actually sent to BS: " + str(np.round((avg_visible_sent_to_BS/ count), 2)),
-            "\n# Correct LoS: " + str(np.round((avg_correct_los / count), 2)),
-            "\n# Correct NLoS: " + str(np.round((avg_correct_nlos / count), 2)),
-            "\n# Incorrect LoS: " + str(np.round((avg_incorrect_los / count), 2)),
-            "\n# Incorrect NLoS: " + str(np.round((avg_incorrect_nlos / count), 2)),
-            "\n# LoS = 0.5: " + str(np.round((avg_unsure_los / count), 2)),
-            "\n# NLoS = 0.5: " + str(np.round((avg_unsure_nlos / count), 2)),
+            "\n# Visible objects but Not Perceived and actually sent by BS: " + str(np.round((avg_visible_sent_by_BS/ count), 2)),
+            "\n# Correct LoS: " + str(np.round((avg_correct_los/ count), 2)),
+            "\n# Correct NLoS: " + str(np.round((avg_correct_nlos/ count), 2)),
+            "\n# Incorrect LoS: " + str(np.round((avg_incorrect_los/ count), 2)),
+            "\n# Incorrect NLoS: " + str(np.round((avg_incorrect_nlos/ count), 2)),
+            "\n# LoS = 0.5: " + str(np.round((avg_unsure_los/ count), 2)),
+            "\n# NLoS = 0.5: " + str(np.round((avg_unsure_nlos/ count), 2)),
         ])
+        # [correct_los, correct_nlos, incorrect_los, incorrect_nlos, unsure_los, unsure_nlos]
 
 
 def plot_summary_sent_percentage():
