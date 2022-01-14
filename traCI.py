@@ -65,7 +65,7 @@ class Simulation:
                                     break
 
                     if not is_occluded:
-                        if cv2x_vehicle.has_in_perception_range(non_cv2x_vehicle, False, self.hyper_params["perception_probability"]):
+                        if cv2x_vehicle.has_in_perception_range(non_cv2x_vehicle, True, self.hyper_params["perception_probability"]):
                             if cv2x_vehicle.vehicle_id in cv2x_vehicles_perception:
                                 cv2x_vehicles_perception[cv2x_vehicle.vehicle_id].append(non_cv2x_vehicle.vehicle_id)
                             else:
@@ -75,6 +75,22 @@ class Simulation:
                             cv2x_vehicles_perception_visible[cv2x_vehicle.vehicle_id].append(non_cv2x_vehicle.vehicle_id)
                         else:
                             cv2x_vehicles_perception_visible[cv2x_vehicle.vehicle_id] = [non_cv2x_vehicle.vehicle_id]
+
+            # Code for perceived cv2x using communication sensors
+            # for other_cv2x in cv2x_vehicles:
+            #     if other_cv2x.vehicle_id == cv2x_vehicle.vehicle_id:
+            #         continue
+            #     if cv2x_vehicle.has_in_perception_range(other_cv2x, True, detection_probability=1):
+            #         if cv2x_vehicle.vehicle_id in cv2x_vehicles_perception:
+            #             cv2x_vehicles_perception[cv2x_vehicle.vehicle_id].append(other_cv2x.vehicle_id)
+            #         else:
+            #             cv2x_vehicles_perception[cv2x_vehicle.vehicle_id] = [other_cv2x.vehicle_id]
+            #
+            #         if cv2x_vehicle.vehicle_id in cv2x_vehicles_perception_visible:
+            #             cv2x_vehicles_perception_visible[cv2x_vehicle.vehicle_id].append(
+            #                 other_cv2x.vehicle_id)
+            #         else:
+            #             cv2x_vehicles_perception_visible[cv2x_vehicle.vehicle_id] = [other_cv2x.vehicle_id]
 
         return cv2x_vehicles_perception, cv2x_vehicles_perception_visible
 
@@ -120,9 +136,16 @@ class Simulation:
             sender_cv2x_vehicle = cv2x_vehicles[sender_cv2x_id]
             other_cv2x_ids = list(set(cv2x_ids) - set([sender_cv2x_id]))
             scores = []
+            cv2x_in_perception_range = []
+
+            for v in other_cv2x_ids:
+                if sender_cv2x_vehicle.has_in_perception_range(cv2x_vehicles[v], True,
+                                                               self.hyper_params["perception_probability"]):
+                    cv2x_in_perception_range.append(cv2x_vehicles[v])
 
             for receiver_cv2x_id in other_cv2x_ids:
                 for perceived_non_cv2x_id in perceived_non_cv2x_ids:
+
                     remaining_perceived_non_cv2x_ids = list(set(perceived_non_cv2x_ids)-set([perceived_non_cv2x_id]))
                     remaining_perceived_non_cv2x_vehicles = [non_cv2x_vehicles[id] for id in remaining_perceived_non_cv2x_ids]
 
@@ -130,10 +153,10 @@ class Simulation:
                     perceived_non_cv2x_vehicle = non_cv2x_vehicles[perceived_non_cv2x_id]
 
                     p = sender_cv2x_vehicle.get_probability_cv2x_sees_non_cv2x(receiver_cv2x_vehicle,
-                                                                           perceived_non_cv2x_vehicle,
-                                                                           remaining_perceived_non_cv2x_vehicles,
-                                                                           buildings,
-                                                                           self.hyper_params["perception_probability"])
+                                                       perceived_non_cv2x_vehicle,
+                                                       remaining_perceived_non_cv2x_vehicles+cv2x_in_perception_range,
+                                                       buildings,
+                                                       self.hyper_params["perception_probability"])
 
                     if p == 1:
                         # if sender sees that LOS between receiver and perceived_obj and is LOS then correct LOS ++
@@ -154,8 +177,8 @@ class Simulation:
                         else:
                             unsure_nlos += 1
                     elif p == 0:
-                        # if sender sees that NLOS between receiver and perceived_obj and is NLOS then correct NLOS ++
-                        # if sender sees that NLOS between receiver and perceived_obj and is LOS then incorrect NLOS ++
+                        # if sender sees that NLOS between receiver and perceived_obj is NLOS then correct NLOS ++
+                        # if sender sees that NLOS between receiver and perceived_obj is LOS then incorrect NLOS ++
                         if receiver_cv2x_id in cv2x_perceived_non_cv2x_vehicles:
                             if perceived_non_cv2x_id in cv2x_perceived_non_cv2x_vehicles[receiver_cv2x_id]:
                                 incorrect_nlos += 1
@@ -495,6 +518,32 @@ class Simulation:
             # 3.2) Get Highest Score for each cv2x vehicle
             score_per_cv2x = {cv2x: max(scores, key=lambda x: x[1]) for cv2x, scores in scores_per_cv2x.items()}
 
+            perceived_but_sent_to_BS = 0
+            not_perceived_but_visible_sent_to_BS = 0
+
+            for sender_cv2x_id, scores in score_per_cv2x.items():
+                (receiver_id, score, perceived_non_cv2x_vehicle) = scores
+                perceived = False
+
+                if score != 0:
+                    if receiver_id in cv2x_perceived_non_cv2x_vehicles:
+                        # Sender does not believed the receiver sees the object cause of the score
+                        # However, it is seen by the receiver
+                        perceived_non_cv2x_vehicles = cv2x_perceived_non_cv2x_vehicles[receiver_id]
+
+                        if perceived_non_cv2x_vehicle.vehicle_id in perceived_non_cv2x_vehicles:
+                            perceived_but_sent_to_BS += 1
+                            perceived = True
+
+                    if receiver_id in cv2x_vehicles_perception_visible and not perceived:
+                        visible_non_cv2x_vehicles = cv2x_vehicles_perception_visible[receiver_id]
+
+                        if perceived_non_cv2x_vehicle.vehicle_id in visible_non_cv2x_vehicles:
+                            # Sender does not believed the receiver sees the objectit
+                            # It is not perceived by the receiver
+                            # However, it is visible to the receiver --> due to detection or gps error!
+                            not_perceived_but_visible_sent_to_BS += 1
+
             # 3.3) Prevent Vehicles from sending with score = 0
             score_per_cv2x = {cv2x:score_receiver for cv2x, score_receiver in score_per_cv2x.items() if score_receiver[1] != 0}
 
@@ -534,8 +583,8 @@ class Simulation:
                 with open(save_path.replace('results', 'GNSS').replace(".txt",'.pkl'), 'wb') as fw:
                     pickle.dump(({v:vehicles[v].get_pos() for v in vehicles.keys()}, selected_messages_requests), fw)
 
-            perceived_but_sent_to_BS = 0
-            not_perceived_but_visible_sent_to_BS = 0
+            perceived_but_sent_by_BS = 0
+            not_perceived_but_visible_sent_by_BS = 0
 
             for (msg_sender_id, [msg_receiver_id, m_s, msg_obj_pos]) in selected_messages_requests:
                 msg_found = False
@@ -558,16 +607,18 @@ class Simulation:
                             perceived_non_cv2x_vehicles = cv2x_perceived_non_cv2x_vehicles[receiver_id]
 
                             if perceived_non_cv2x_vehicle.vehicle_id in perceived_non_cv2x_vehicles:
-                                perceived_but_sent_to_BS += 1
+                                perceived_but_sent_by_BS += 1
                                 perceived = True
 
                         if receiver_id in cv2x_vehicles_perception_visible and not perceived:
+
+                            visible_non_cv2x_vehicles = cv2x_vehicles_perception_visible[receiver_id]
+
                             if perceived_non_cv2x_vehicle.vehicle_id in visible_non_cv2x_vehicles:
                                 # Sender does not believed the receiver sees the objectit
                                 # It is not perceived by the receiver
                                 # However, it is visible to the receiver --> due to detection or gps error!
-                                visible_non_cv2x_vehicles = cv2x_vehicles_perception_visible[receiver_id]
-                                not_perceived_but_visible_sent_to_BS += 1
+                                not_perceived_but_visible_sent_by_BS += 1
 
                         msg_found = True
                         break
@@ -607,16 +658,18 @@ class Simulation:
                          + "\nVisible Vehicles: " + str(tot_visible_objects)
                          + "\nPerceived But considered sending to BS: " + str(perceived_but_considered_to_send)
                          + "\nPerceived But Sent to BS: " + str(perceived_but_sent_to_BS)
+                         + "\nPerceived But Sent by BS: " + str(perceived_but_sent_by_BS)
                          + "\nNot Perceived but visible and considered sending to BS: " + str(not_perceived_but_visible_considered_to_send)
-                         + "\nNot Perceived but visible and Sent to BS: " + str(not_perceived_but_visible_considered_to_send)
+                         + "\nNot Perceived but visible and Sent to BS: " + str(not_perceived_but_visible_sent_to_BS)
+                         + "\nNot Perceived but visible and Sent by BS: " + str(not_perceived_but_visible_sent_by_BS)
                          + "\nCorrect LoS: " + str(los_statuses[0])
-                         + "\nIncorrect LoS: " + str(los_statuses[1])
-                         + "\nCorrect NLoS: " + str(los_statuses[2])
+                         + "\nCorrect Nlos: " + str(los_statuses[1])
+                         + "\nIncorrect Los: " + str(los_statuses[2])
                          + "\nIncorrect NLoS: " + str(los_statuses[3])
                          + "\nUnsure LoS: " + str(los_statuses[4])
                          + "\nUnsure NLoS: " + str(los_statuses[5])
                          )
-
+            # [correct_los, correct_nlos, incorrect_los, incorrect_nlos, unsure_los, unsure_nlos]
             break
 
         if self.hyper_params["save_visual"]:

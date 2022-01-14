@@ -262,19 +262,24 @@ class Vehicle:
                 # or not self.can_see_vehicle(non_cv2x_vehicle, perception_probability=1):
             return 0.5
 
-        # non_cv2x_vehicle_corners = non_cv2x_vehicle.get_vehicle_boundaries()
+        non_cv2x_vehicle_corners = non_cv2x_vehicle.get_vehicle_boundaries()
 
-        # lines = [list(cv2x_vehicle.pos) + non_cv2x_vehicle_corners[0].tolist(),
-        #          list(cv2x_vehicle.pos) + non_cv2x_vehicle_corners[1].tolist(),
-        #          list(cv2x_vehicle.pos) + non_cv2x_vehicle_corners[2].tolist(),
-        #          list(cv2x_vehicle.pos) + non_cv2x_vehicle_corners[3].tolist()]
+        lines = [list(receiver.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
+                                                            non_cv2x_vehicle_corners[0].tolist()),
+                 list(receiver.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
+                                                            non_cv2x_vehicle_corners[1].tolist()),
+                 list(receiver.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
+                                                            non_cv2x_vehicle_corners[2].tolist()),
+                 list(receiver.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
+                                                            non_cv2x_vehicle_corners[3].tolist())]
 
         LoS = list(receiver.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(), non_cv2x_vehicle.get_pos())
 
-        # for cv2x_to_non_cv2x_corner_line in lines:
+        # for LoS in lines:
         # list of objects occluding cv2x and noncv2x
         for occlusion_vehicle in remaining_perceived_non_cv2x_vehicles:
-
+            if occlusion_vehicle.vehicle_id == receiver.vehicle_id:
+                continue
             occlusion_vehicle_corners = [get_new_abs_pos(self.get_pos(False), self.get_pos(), v)
                                          for v in occlusion_vehicle.get_vehicle_boundaries()]
 
@@ -287,6 +292,9 @@ class Vehicle:
                                                                                        occlusion_vehicle.get_pos())
 
                 for occlusion_vehicle_2 in remaining_perceived_non_cv2x_vehicles:
+                    if occlusion_vehicle_2.vehicle_id == receiver.vehicle_id:
+                        continue
+
                     if occlusion_vehicle_2.vehicle_id != occlusion_vehicle.vehicle_id:
                         occlusion_vehicle2_corners = [get_new_abs_pos(self.get_pos(False), self.get_pos(), v) for v in
                                                       occlusion_vehicle_2.get_vehicle_boundaries()]
@@ -312,6 +320,9 @@ class Vehicle:
                                      int(euclidean_distance(LoS[0:2], LoS[2:4])*2))
 
         for occlusion_vehicle in remaining_perceived_non_cv2x_vehicles:
+            if occlusion_vehicle.vehicle_id == receiver.vehicle_id:
+                continue
+
             occlusion_vehicle_corners = [get_new_abs_pos(self.get_pos(False), self.get_pos(), v)
                                          for v in occlusion_vehicle.get_vehicle_boundaries()]
             for point in interpolations:
