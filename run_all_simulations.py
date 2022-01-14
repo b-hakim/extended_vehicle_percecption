@@ -166,8 +166,8 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
 
     for i in range(n):
         try:
-            list_threads[i].join(timeout=block_Size * 1 * 60)
-            # list_threads[i].terminate()
+            list_threads[i].join(timeout=block_Size * 2 * 60)
+            list_threads[i].terminate()
         except:
             print("except in thread")
 
@@ -214,6 +214,14 @@ if __name__ == '__main__':
 
         start_time = time.time()
 
+        ################################################   GPS   #######################################################
+        base_dir = '/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto'
+        for noise in [0, 0.1, 0.5, 2, 5]:
+            print(f"Simulation noise: {noise}")
+            run_simulation(base_dir, cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100,
+                           tot_num_vehicles=100, perception_probability=1,
+                           estimate_detection_error=False, use_saved_seed=True, noise_distance=noise, repeat=False)
+
         #########################################   Error Detection   ##################################################
         base_dir = '/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto'
         for perc_porb in [0.9, 0.85]:
@@ -222,17 +230,9 @@ if __name__ == '__main__':
                 run_simulation(base_dir=base_dir, cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100, tot_num_vehicles=100,
                                perception_probability=perc_porb, estimate_detection_error=ede, use_saved_seed=True)
 
-        ################################################   GPS   #######################################################
-        # base_dir = '/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto'
-        # for noise in [0, 0.1, 0.5, 2, 5]:
-        #     print(f"Simulation noise: {noise}")
-        #     run_simulation(base_dir, cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100,
-        #                    tot_num_vehicles=100, perception_probability=1,
-        #                    estimate_detection_error=False, use_saved_seed=True, noise_distance=noise, repeat=False)
-
         # #############################################    FOV     #####################################################
         # for fov in [60, 90, 120, 240, 360]:
-        # for fov in [240, 360, 60, 90, 120]:
+        # # for fov in [240, 360, 60, 90, 120]:
         #     print(f"Simulation fov: {fov}")
         #     run_simulation(base_dir="/media/bassel/E256341D5633F0C1/toronto_fov/toronto",
         #                    cv2x_percentage=0.65, fov=fov, view_range=75, num_RBs=100, tot_num_vehicles=100,
@@ -246,10 +246,11 @@ if __name__ == '__main__':
 
         # ######################################   Test    ###############################################################
         # p = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test"
-        # simulation_thread = RunSimulationProcess([p], cv2x_percentage=0.65, fov=200, view_range=75, num_RBs=100,
+        # simulation_thread = RunSimulationProcess([p], cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100,
         #                tot_num_vehicles=100, id=0, time_threshold=10, perception_probability=1, estimate_detection_error=False,
         #                                          use_saved_seed=True, save_gnss=True, noise_distance=0)
         # simulation_thread.run()
+
         print("time taken:",time.time()-start_time)
     elif sim_type == SIMULATION_TYPE.FIRST_PAPER:
         ###################################################################################################################
