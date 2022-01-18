@@ -698,10 +698,16 @@ if __name__ == '__main__':
     hyper_params['message_size'] = 2000*8
     hyper_params['tot_num_vehicles'] = 150
     hyper_params['time_threshold'] = 10
-########################################################################################################################
-    hyper_params['scenario_path'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto/toronto_0/0/test.net.xml"
-    hyper_params['scenario_map'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto/toronto_0/0/net.sumo.cfg"
-    hyper_params['scenario_polys'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto/toronto_0/0/map.poly.xml"
+    hyper_params['save_visual'] = True
+    hyper_params['noise_distance'] = 0
+    hyper_params['perception_probability'] = 1
+    hyper_params['estimate_detection_error'] = False
+    hyper_params['save_gnss'] = False
+
+#############################################   GPS TEST   #############################################################
+    hyper_params['scenario_path'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto/toronto_0/0/test.net.xml"
+    hyper_params['scenario_map'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto/toronto_0/0/net.sumo.cfg"
+    hyper_params['scenario_polys'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto/toronto_0/0/map.poly.xml"
     hyper_params["cv2x_N"] = 0.25
     hyper_params["fov"] = 120
     hyper_params["view_range"] = 75
@@ -711,6 +717,11 @@ if __name__ == '__main__':
     hyper_params['message_size'] = 2000*8
     hyper_params['tot_num_vehicles'] = 100
     hyper_params['time_threshold'] = 10
+    hyper_params['save_visual'] = True
+    hyper_params['noise_distance'] = 2
+    hyper_params['perception_probability'] = 1
+    hyper_params['estimate_detection_error'] = False
+    hyper_params['save_gnss'] = False
 
     sim = Simulation(hyper_params, "0_0")
-    # sim.run()
+    sim.run()
