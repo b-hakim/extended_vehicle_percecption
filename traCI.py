@@ -77,6 +77,9 @@ class Simulation:
                             cv2x_vehicles_perception_visible[cv2x_vehicle.vehicle_id] = [non_cv2x_vehicle.vehicle_id]
 
             # Code for perceived cv2x using communication sensors
+            # Decision: Do not add AV to the perceived set to differentiate between AV and NAV,
+            # Also, we do check the perceived vehicles with all the possible receivers later in the code
+            #
             # for other_cv2x in cv2x_vehicles:
             #     if other_cv2x.vehicle_id == cv2x_vehicle.vehicle_id:
             #         continue
