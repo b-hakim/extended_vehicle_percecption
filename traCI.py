@@ -126,54 +126,53 @@ class Simulation:
         else:
             return p/t
 
-    def calculate_scores_per_cv2x(self, cv2x_perceived_non_cv2x_vehicles,
-                                  cv2x_vehicles, non_cv2x_vehicles,
+    def calculate_scores_per_cv2x(self, av_perceiving_nav_vehicles,
+                                  av, non_av,
                                   buildings, time_threshold):
         correct_los, correct_nlos, unsure_los, unsure_nlos, incorrect_los, incorrect_nlos = 0, 0, 0, 0, 0, 0
 
-        cv2x_ids = list(cv2x_vehicles.keys())
-        scores_per_cv2x = {}
+        av_ids = list(av.keys())
+        scores_per_av = {}
 
-        for sender_cv2x_id, perceived_non_cv2x_ids in cv2x_perceived_non_cv2x_vehicles.items():
-            sender_cv2x_vehicle = cv2x_vehicles[sender_cv2x_id]
-            other_cv2x_ids = list(set(cv2x_ids) - set([sender_cv2x_id]))
+        for sender_av_id, perceived_nav_ids in av_perceiving_nav_vehicles.items():
+            sender_av = av[sender_av_id]
+            other_av_ids = list(set(av_ids) - set([sender_av_id]))
             scores = []
-            cv2x_in_perception_range = []
+            perceived_av_ids = []
 
-            for receiver_cv2x_id in other_cv2x_ids:
-                # potential issue as cv2x already has a noise?
-                if sender_cv2x_vehicle.has_in_perception_range(cv2x_vehicles[receiver_cv2x_id], False,
+            for perceived_av_id in other_av_ids:
+                if sender_av.has_in_perception_range(av[perceived_av_id], True,
                                                                self.hyper_params["perception_probability"]):
-                    cv2x_in_perception_range.append(cv2x_vehicles[receiver_cv2x_id])
+                    perceived_av_ids.append(av[perceived_av_id])
 
-            for receiver_cv2x_id in other_cv2x_ids:
-                for perceived_non_cv2x_id in perceived_non_cv2x_ids:
+            for perceived_av_id in other_av_ids:
+                for perceived_nav_id in perceived_nav_ids:
 
-                    remaining_perceived_non_cv2x_ids = list(set(perceived_non_cv2x_ids)-set([perceived_non_cv2x_id]))
-                    remaining_perceived_non_cv2x_vehicles = [non_cv2x_vehicles[id] for id in remaining_perceived_non_cv2x_ids]
+                    remaining_perceived_non_cv2x_ids = list(set(perceived_nav_ids)-set([perceived_nav_id]))
+                    remaining_perceived_nav = [non_av[id] for id in remaining_perceived_non_cv2x_ids]
 
-                    receiver_cv2x_vehicle = cv2x_vehicles[receiver_cv2x_id]
-                    perceived_non_cv2x_vehicle = non_cv2x_vehicles[perceived_non_cv2x_id]
+                    receiver_av = av[perceived_av_id]
+                    perceived_nav = non_av[perceived_nav_id]
 
-                    p = sender_cv2x_vehicle.get_probability_cv2x_sees_non_cv2x(receiver_cv2x_vehicle,
-                                                       perceived_non_cv2x_vehicle,
-                                                       remaining_perceived_non_cv2x_vehicles+cv2x_in_perception_range,
+                    p = sender_av.get_probability_cv2x_sees_non_cv2x(receiver_av,
+                                                       perceived_nav,
+                                                       remaining_perceived_nav+perceived_av_ids,
                                                        buildings,
                                                        self.hyper_params["perception_probability"])
 
                     if p == 1:
                         # if sender sees that LOS between receiver and perceived_obj and is LOS then correct LOS ++
                         # if sender sees that LOS between receiver and perceived_obj and is NLOS then incorrect LOS ++
-                        if receiver_cv2x_id in cv2x_perceived_non_cv2x_vehicles:
-                            if perceived_non_cv2x_id in cv2x_perceived_non_cv2x_vehicles[receiver_cv2x_id]:
+                        if perceived_av_id in av_perceiving_nav_vehicles:
+                            if perceived_nav_id in av_perceiving_nav_vehicles[perceived_av_id]:
                                 correct_los += 1
                             else:
                                 incorrect_los += 1
                         else:
                             incorrect_los += 1
                     elif p == 0.5:
-                        if receiver_cv2x_id in cv2x_perceived_non_cv2x_vehicles:
-                            if perceived_non_cv2x_id in cv2x_perceived_non_cv2x_vehicles[receiver_cv2x_id]:
+                        if perceived_av_id in av_perceiving_nav_vehicles:
+                            if perceived_nav_id in av_perceiving_nav_vehicles[perceived_av_id]:
                                 unsure_los += 1
                             else:
                                 unsure_nlos += 1
@@ -182,8 +181,8 @@ class Simulation:
                     elif p == 0:
                         # if sender sees that NLOS between receiver and perceived_obj is NLOS then correct NLOS ++
                         # if sender sees that NLOS between receiver and perceived_obj is LOS then incorrect NLOS ++
-                        if receiver_cv2x_id in cv2x_perceived_non_cv2x_vehicles:
-                            if perceived_non_cv2x_id in cv2x_perceived_non_cv2x_vehicles[receiver_cv2x_id]:
+                        if perceived_av_id in av_perceiving_nav_vehicles:
+                            if perceived_nav_id in av_perceiving_nav_vehicles[perceived_av_id]:
                                 incorrect_nlos += 1
                             else:
                                 correct_nlos += 1
@@ -198,15 +197,15 @@ class Simulation:
                     p = 1 - p # set to 0 if cv2x sees the object to be sent
 
                     if p == 0:
-                        scores.append((receiver_cv2x_id, 0, perceived_non_cv2x_vehicle))
+                        scores.append((perceived_av_id, 0, perceived_nav))
                     else:
-                        scores.append((receiver_cv2x_id,
-                                       self.get_interest_cv2x_in_vehicle(receiver_cv2x_vehicle,
-                                                                         perceived_non_cv2x_vehicle, p, time_threshold),
-                                       perceived_non_cv2x_vehicle))
+                        scores.append((perceived_av_id,
+                                       self.get_interest_cv2x_in_vehicle(receiver_av,
+                                                                         perceived_nav, p, time_threshold),
+                                       perceived_nav))
 
-            scores_per_cv2x[sender_cv2x_id] = scores
-        return scores_per_cv2x, [correct_los, correct_nlos, incorrect_los, incorrect_nlos, unsure_los, unsure_nlos]
+            scores_per_av[sender_av_id] = scores
+        return scores_per_av, [correct_los, correct_nlos, incorrect_los, incorrect_nlos, unsure_los, unsure_nlos]
 
     def get_shortest_route(self, cv2x_veh_pos, noncv2x_veh_pos, non_cv2x_edge, list_destination_edges):
         min_distance = 100000000000
