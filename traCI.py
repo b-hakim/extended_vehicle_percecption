@@ -129,8 +129,7 @@ class Simulation:
     def calculate_scores_per_cv2x(self, cv2x_perceived_non_cv2x_vehicles,
                                   cv2x_vehicles, non_cv2x_vehicles,
                                   buildings, time_threshold):
-        correct_los, correct_nlos, unsure_los, unsure_nlos = 0, 0, 0, 0
-        incorrect_los, incorrect_nlos = 0, 0
+        correct_los, correct_nlos, unsure_los, unsure_nlos, incorrect_los, incorrect_nlos = 0, 0, 0, 0, 0, 0
 
         cv2x_ids = list(cv2x_vehicles.keys())
         scores_per_cv2x = {}
@@ -141,11 +140,11 @@ class Simulation:
             scores = []
             cv2x_in_perception_range = []
 
-            for v in other_cv2x_ids:
+            for receiver_cv2x_id in other_cv2x_ids:
                 # potential issue as cv2x already has a noise?
-                if sender_cv2x_vehicle.has_in_perception_range(cv2x_vehicles[v], True,
+                if sender_cv2x_vehicle.has_in_perception_range(cv2x_vehicles[receiver_cv2x_id], False,
                                                                self.hyper_params["perception_probability"]):
-                    cv2x_in_perception_range.append(cv2x_vehicles[v])
+                    cv2x_in_perception_range.append(cv2x_vehicles[receiver_cv2x_id])
 
             for receiver_cv2x_id in other_cv2x_ids:
                 for perceived_non_cv2x_id in perceived_non_cv2x_ids:
