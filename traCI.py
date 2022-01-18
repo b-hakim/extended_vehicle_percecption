@@ -141,6 +141,7 @@ class Simulation:
             perceived_av_ids = []
 
             for perceived_av_id in other_av_ids:
+                # This is considered as ignoring the sender camera and using location from the receiver GNSS location
                 if sender_av.has_in_perception_range(av[perceived_av_id], True,
                                                                self.hyper_params["perception_probability"]):
                     perceived_av_ids.append(av[perceived_av_id])
