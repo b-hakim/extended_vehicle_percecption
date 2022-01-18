@@ -57,15 +57,15 @@ class Simulation:
                             break
 
                     if not is_occluded:
-                        for non_cv2x_obstacle_vehicle in non_cv2x_vehicles+cv2x_vehicles:
-                            if non_cv2x_obstacle_vehicle.vehicle_id != non_cv2x_vehicle.vehicle_id and \
-                                    non_cv2x_obstacle_vehicle.vehicle_id != cv2x_vehicle.vehicle_id:
-                                if cv2x_vehicle.vehicle_in_sight(non_cv2x_obstacle_vehicle, non_cv2x_vehicle, False):
+                        for obstacle_vehicle in non_cv2x_vehicles+cv2x_vehicles:
+                            if obstacle_vehicle.vehicle_id != non_cv2x_vehicle.vehicle_id and \
+                                    obstacle_vehicle.vehicle_id != cv2x_vehicle.vehicle_id:
+                                if cv2x_vehicle.vehicle_in_sight(obstacle_vehicle, non_cv2x_vehicle, False):
                                     is_occluded = True
                                     break
 
                     if not is_occluded:
-                        if cv2x_vehicle.has_in_perception_range(non_cv2x_vehicle, True, self.hyper_params["perception_probability"]):
+                        if cv2x_vehicle.has_in_perception_range(non_cv2x_vehicle, False, self.hyper_params["perception_probability"]):
                             if cv2x_vehicle.vehicle_id in cv2x_vehicles_perception:
                                 cv2x_vehicles_perception[cv2x_vehicle.vehicle_id].append(non_cv2x_vehicle.vehicle_id)
                             else:
@@ -139,6 +139,7 @@ class Simulation:
             cv2x_in_perception_range = []
 
             for v in other_cv2x_ids:
+                # potential issue as cv2x already has a noise?
                 if sender_cv2x_vehicle.has_in_perception_range(cv2x_vehicles[v], True,
                                                                self.hyper_params["perception_probability"]):
                     cv2x_in_perception_range.append(cv2x_vehicles[v])
@@ -405,21 +406,9 @@ class Simulation:
             for vid in need_to_remove:
                 vehicles.pop(vid)
 
-            # if len(vehicle_ids) == 0:
-            #     break
-            # else:
-            snapshot = False
-            if len(vehicle_ids) >= self.hyper_params['tot_num_vehicles']:
-                # if np.random.random() > 0.5:
-                snapshot = True
-
-            # print(f"Step={step}, N={len(vehicle_ids)}")
-            # print("=============================================================")
-
-            if not snapshot:
+            if len(vehicle_ids) < self.hyper_params['tot_num_vehicles']:
                 continue
 
-            # print(vehicles.keys())
             if self.hyper_params["save_visual"]:
                 viz.draw_vehicles(vehicles.values())
 
