@@ -705,14 +705,14 @@ if __name__ == '__main__':
     hyper_params['save_gnss'] = False
 
 #############################################   GPS TEST   #############################################################
-    hyper_params['scenario_path'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto/toronto_0/0/test.net.xml"
-    hyper_params['scenario_map'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto/toronto_0/0/net.sumo.cfg"
-    hyper_params['scenario_polys'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto/toronto_0/0/map.poly.xml"
+    hyper_params['scenario_path'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test/test.net.xml"
+    hyper_params['scenario_map'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test/net.sumo.cfg"
+    hyper_params['scenario_polys'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test/map.poly.xml"
     hyper_params["cv2x_N"] = 0.25
     hyper_params["fov"] = 120
     hyper_params["view_range"] = 75
     # hyper_params["base_station_position"] = 1600, 600
-    hyper_params["base_station_position"] = (650, 500)
+    hyper_params["base_station_position"] = (1150, 525)
     hyper_params["num_RBs"] = 50
     hyper_params['message_size'] = 2000*8
     hyper_params['tot_num_vehicles'] = 100
