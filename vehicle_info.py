@@ -195,6 +195,9 @@ class Vehicle:
         #     ])
         return corners
 
+    '''
+    Checks if the vehicle is in the perception range of AV
+    '''
     def has_in_perception_range(self, vehicle, gps_error, detection_probability=1.0, noise=None):
         if random.random() > detection_probability:
             return False
