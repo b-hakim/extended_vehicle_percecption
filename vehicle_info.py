@@ -206,7 +206,7 @@ class Vehicle:
         vehicle_corners = vehicle.get_vehicle_boundaries()
 
         if noise is not None:
-            vehicle_corners = [get_new_abs_pos(noise[0], noise[1], v) for v in vehicle_corners]
+            vehicle_corners = [get_new_abs_pos(noise[0], noise[1], c) for c in vehicle_corners]
 
         dists = [
             euclidean_distance(self.get_pos(gps_error), vehicle_corners[0]),
@@ -242,8 +242,8 @@ class Vehicle:
 
         return np.array([angle <= self.fov / 2 for angle in angles]).any()
 
-    def get_probability_cv2x_sees_non_cv2x(self, receiver, non_cv2x_vehicle,
-                                           remaining_perceived_non_cv2x_vehicles, buildings, detection_probability):
+    def calculate_probability_av_sees_nav(self, av, nav, vehicles_in_my_perception_range,
+                                          buildings, detection_probability):
         # First make sure that the cv2x can see the non_cv2x i.e. inside viewing range and FoV
         # If the cv2x and the non_cv2x are both located inside the viewing range and FoV of self, then
             # Let L = list of objects occluding cv2x and noncv2x
@@ -256,32 +256,33 @@ class Vehicle:
         # Else
             # return 0.5
 
-        # Validate that the vehicle is in the range of cv2x
-        if not receiver.has_in_perception_range(non_cv2x_vehicle, True, detection_probability=1,
-                                                noise=(self.get_pos(False), self.get_pos())):
+        # Validate that the vehicle is in the range of av receiver
+        # receiver av must include its noise as this is estimated relative to the sender av which knows the receiver pos
+        # with errors in the pos
+        if not av.has_in_perception_range(nav, True, detection_probability=1,
+                                          noise=(self.get_pos(False), self.get_pos())):
             return 0
 
-        if not self.has_in_perception_range(receiver, True, detection_probability=1):
-                # or not self.can_see_vehicle(non_cv2x_vehicle, perception_probability=1):
+        if not self.has_in_perception_range(av, True, detection_probability=1):
             return 0.5
 
-        non_cv2x_vehicle_corners = non_cv2x_vehicle.get_vehicle_boundaries()
+        non_cv2x_vehicle_corners = nav.get_vehicle_boundaries()
 
-        lines = [list(receiver.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
-                                                            non_cv2x_vehicle_corners[0].tolist()),
-                 list(receiver.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
-                                                            non_cv2x_vehicle_corners[1].tolist()),
-                 list(receiver.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
-                                                            non_cv2x_vehicle_corners[2].tolist()),
-                 list(receiver.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
-                                                            non_cv2x_vehicle_corners[3].tolist())]
+        lines = [list(av.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
+                                                      non_cv2x_vehicle_corners[0].tolist()),
+                 list(av.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
+                                                      non_cv2x_vehicle_corners[1].tolist()),
+                 list(av.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
+                                                      non_cv2x_vehicle_corners[2].tolist()),
+                 list(av.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
+                                                      non_cv2x_vehicle_corners[3].tolist())]
 
-        LoS = list(receiver.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(), non_cv2x_vehicle.get_pos())
+        LoS = list(av.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(), nav.get_pos())
 
         # for LoS in lines:
         # list of objects occluding cv2x and noncv2x
-        for occlusion_vehicle in remaining_perceived_non_cv2x_vehicles:
-            if occlusion_vehicle.vehicle_id == receiver.vehicle_id:
+        for occlusion_vehicle in vehicles_in_my_perception_range:
+            if occlusion_vehicle.vehicle_id == av.vehicle_id or occlusion_vehicle.vehicle_id == nav.vehicle_id:
                 continue
             occlusion_vehicle_corners = [get_new_abs_pos(self.get_pos(False), self.get_pos(), v)
                                          for v in occlusion_vehicle.get_vehicle_boundaries()]
@@ -294,8 +295,9 @@ class Vehicle:
                                                                                        self.get_pos(),
                                                                                        occlusion_vehicle.get_pos())
 
-                for occlusion_vehicle_2 in remaining_perceived_non_cv2x_vehicles:
-                    if occlusion_vehicle_2.vehicle_id == receiver.vehicle_id:
+                for occlusion_vehicle_2 in vehicles_in_my_perception_range:
+                    if occlusion_vehicle_2.vehicle_id == av.vehicle_id \
+                            or occlusion_vehicle_2.vehicle_id == nav.vehicle_id:
                         continue
 
                     if occlusion_vehicle_2.vehicle_id != occlusion_vehicle.vehicle_id:
@@ -322,8 +324,8 @@ class Vehicle:
                                      LoS[2:4],
                                      int(euclidean_distance(LoS[0:2], LoS[2:4])*2))
 
-        for occlusion_vehicle in remaining_perceived_non_cv2x_vehicles:
-            if occlusion_vehicle.vehicle_id == receiver.vehicle_id:
+        for occlusion_vehicle in vehicles_in_my_perception_range:
+            if occlusion_vehicle.vehicle_id == av.vehicle_id:
                 continue
 
             occlusion_vehicle_corners = [get_new_abs_pos(self.get_pos(False), self.get_pos(), v)
