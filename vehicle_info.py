@@ -329,7 +329,8 @@ class Vehicle:
                                      int(euclidean_distance(LoS[0:2], LoS[2:4]) * 2))
 
         for occlusion_vehicle in vehicles_in_my_perception_range:
-            if occlusion_vehicle.vehicle_id == av.vehicle_id or occlusion_vehicle.vehicle_id == nav.vehicle_id:
+            if occlusion_vehicle.vehicle_id == av.vehicle_id \
+                    or occlusion_vehicle.vehicle_id == nav.vehicle_id:
                 continue
 
             occlusion_vehicle_corners = [get_new_abs_pos(self.get_pos(False), self.get_pos(), v)
