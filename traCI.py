@@ -138,57 +138,65 @@ class Simulation:
             sender_av = av[sender_av_id]
             other_av_ids = list(set(av_ids) - set([sender_av_id]))
             scores = []
-            perceived_av_ids = []
+            perceived_av = []
 
             for perceived_av_id in other_av_ids:
                 # This is considered as ignoring the sender camera and using location from the receiver GNSS location
+                # The receiver GNSS error is done inside the receiver get_pos
+                # The sender GNSS error affects the calculation of perceiving the receiver AV --> hence, param: True
                 if sender_av.has_in_perception_range(av[perceived_av_id], True,
                                                                self.hyper_params["perception_probability"]):
-                    perceived_av_ids.append(av[perceived_av_id])
+                    perceived_av.append(av[perceived_av_id])
 
-            for perceived_av_id in other_av_ids:
+            for receiver_av_id in other_av_ids:
+                receiver_is_in_sender_perception_area = False
+
+                if av[receiver_av_id] in perceived_av:
+                    perceived_av.remove(av[receiver_av_id])
+                    receiver_is_in_sender_perception_area = True
+
                 for perceived_nav_id in perceived_nav_ids:
 
                     remaining_perceived_non_cv2x_ids = list(set(perceived_nav_ids)-set([perceived_nav_id]))
                     remaining_perceived_nav = [non_av[id] for id in remaining_perceived_non_cv2x_ids]
 
-                    receiver_av = av[perceived_av_id]
+                    receiver_av = av[receiver_av_id]
                     perceived_nav = non_av[perceived_nav_id]
 
-                    p = sender_av.get_probability_cv2x_sees_non_cv2x(receiver_av,
-                                                       perceived_nav,
-                                                       remaining_perceived_nav+perceived_av_ids,
-                                                       buildings,
-                                                       self.hyper_params["perception_probability"])
+                    p = sender_av.calculate_probability_av_sees_nav(receiver_av,
+                                                                    perceived_nav,
+                                                                    remaining_perceived_nav + perceived_av,
+                                                                    buildings,
+                                                                    self.hyper_params["perception_probability"])
 
                     if p == 1:
                         # if sender sees that LOS between receiver and perceived_obj and is LOS then correct LOS ++
                         # if sender sees that LOS between receiver and perceived_obj and is NLOS then incorrect LOS ++
-                        if perceived_av_id in av_perceiving_nav_vehicles:
-                            if perceived_nav_id in av_perceiving_nav_vehicles[perceived_av_id]:
+                        if receiver_av_id in av_perceiving_nav_vehicles:
+                            if perceived_nav_id in av_perceiving_nav_vehicles[receiver_av_id]:
                                 correct_los += 1
                             else:
                                 incorrect_los += 1
                         else:
                             incorrect_los += 1
-                    elif p == 0.5:
-                        if perceived_av_id in av_perceiving_nav_vehicles:
-                            if perceived_nav_id in av_perceiving_nav_vehicles[perceived_av_id]:
-                                unsure_los += 1
-                            else:
-                                unsure_nlos += 1
-                        else:
-                            unsure_nlos += 1
                     elif p == 0:
                         # if sender sees that NLOS between receiver and perceived_obj is NLOS then correct NLOS ++
                         # if sender sees that NLOS between receiver and perceived_obj is LOS then incorrect NLOS ++
-                        if perceived_av_id in av_perceiving_nav_vehicles:
-                            if perceived_nav_id in av_perceiving_nav_vehicles[perceived_av_id]:
+                        if receiver_av_id in av_perceiving_nav_vehicles:
+                            if perceived_nav_id in av_perceiving_nav_vehicles[receiver_av_id]:
                                 incorrect_nlos += 1
                             else:
                                 correct_nlos += 1
                         else:
                             correct_nlos += 1
+                    elif p == 0.5:
+                        if receiver_av_id in av_perceiving_nav_vehicles:
+                            if perceived_nav_id in av_perceiving_nav_vehicles[receiver_av_id]:
+                                unsure_los += 1
+                            else:
+                                unsure_nlos += 1
+                        else:
+                            unsure_nlos += 1
 
                     if self.hyper_params["estimate_detection_error"]:
                         if p == 1: # cv2x receiver sees object to be sent, then add probability it doesnt sees it!
@@ -198,12 +206,15 @@ class Simulation:
                     p = 1 - p # set to 0 if cv2x sees the object to be sent
 
                     if p == 0:
-                        scores.append((perceived_av_id, 0, perceived_nav))
+                        scores.append((receiver_av_id, 0, perceived_nav))
                     else:
-                        scores.append((perceived_av_id,
+                        scores.append((receiver_av_id,
                                        self.get_interest_cv2x_in_vehicle(receiver_av,
                                                                          perceived_nav, p, time_threshold),
                                        perceived_nav))
+
+                if receiver_is_in_sender_perception_area:
+                    perceived_av.append(av[receiver_av_id])
 
             scores_per_av[sender_av_id] = scores
         return scores_per_av, [correct_los, correct_nlos, incorrect_los, incorrect_nlos, unsure_los, unsure_nlos]
