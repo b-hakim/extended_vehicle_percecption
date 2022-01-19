@@ -70,7 +70,7 @@ class Vehicle:
         vehicle_angle_degree = traci.vehicle.getAngle(self.vehicle_id)
         # - angle for making it ccw
         # +90 for the desired angle is based on the x axis while traci has angle based on y axis
-        vehicle_angle_degree = (- vehicle_angle_degree + 90) %360
+        vehicle_angle_degree = (- vehicle_angle_degree + 90) % 360
 
         # if vehicle_angle_degree < 0:
         #     vehicle_angle_degree += 360
@@ -109,7 +109,7 @@ class Vehicle:
 
             prev_edge = curr_edge
 
-        return 3600 * (d/40000)
+        return 3600 * (d / 40000)
 
     def get_future_route(self, net, time_threshold):
         full_route = traci.vehicle.getRoute(self.vehicle_id)
@@ -148,7 +148,7 @@ class Vehicle:
 
     def vehicle_in_sight(self, obstacle_vehicle, destination_vehicle, gps_error):
         # assert False ## need to find static obstacles to destination
-        #intersect between line to destination and obj box
+        # intersect between line to destination and obj box
 
         destination_vehicle_corners = destination_vehicle.get_vehicle_boundaries()
         obstacle_vehicle_corners = [v.tolist() for v in obstacle_vehicle.get_vehicle_boundaries()]
@@ -198,6 +198,7 @@ class Vehicle:
     '''
     Checks if the vehicle is in the perception range of AV
     '''
+
     def has_in_perception_range(self, vehicle, gps_error, detection_probability=1.0, noise=None):
         if random.random() > detection_probability:
             return False
@@ -219,17 +220,20 @@ class Vehicle:
             return False
 
         # Second check that the vehicle is in the given FoV
-        angles = [abs(inner_angle_between_two_vectors(self.heading_unit_vector, get_vector(self.get_pos(gps_error), vehicle_corners[0]))),
-                  abs(inner_angle_between_two_vectors(self.heading_unit_vector, get_vector(self.get_pos(gps_error), vehicle_corners[1]))),
-                  abs(inner_angle_between_two_vectors(self.heading_unit_vector, get_vector(self.get_pos(gps_error), vehicle_corners[2]))),
-                  abs(inner_angle_between_two_vectors(self.heading_unit_vector, get_vector(self.get_pos(gps_error), vehicle_corners[3])))]
+        angles = [abs(inner_angle_between_two_vectors(self.heading_unit_vector,
+                                                      get_vector(self.get_pos(gps_error), vehicle_corners[0]))),
+                  abs(inner_angle_between_two_vectors(self.heading_unit_vector,
+                                                      get_vector(self.get_pos(gps_error), vehicle_corners[1]))),
+                  abs(inner_angle_between_two_vectors(self.heading_unit_vector,
+                                                      get_vector(self.get_pos(gps_error), vehicle_corners[2]))),
+                  abs(inner_angle_between_two_vectors(self.heading_unit_vector,
+                                                      get_vector(self.get_pos(gps_error), vehicle_corners[3])))]
 
         return np.array([angle <= self.fov / 2 for angle in angles]).any()
 
     def can_see_building(self, building):
         # First check that the distance to the vehicle is less than the given range
         building_corners = building.shape
-
 
         dists = [euclidean_distance(self.get_pos(), c) for c in building_corners]
 
@@ -238,7 +242,7 @@ class Vehicle:
 
         # Second check that the vehicle is in the given FoV
         angles = [abs(inner_angle_between_two_vectors(self.heading_unit_vector, get_vector(self.get_pos(), c)))
-                                                                                            for c in building_corners]
+                  for c in building_corners]
 
         return np.array([angle <= self.fov / 2 for angle in angles]).any()
 
@@ -246,15 +250,15 @@ class Vehicle:
                                           buildings, detection_probability):
         # First make sure that the cv2x can see the non_cv2x i.e. inside viewing range and FoV
         # If the cv2x and the non_cv2x are both located inside the viewing range and FoV of self, then
-            # Let L = list of objects occluding cv2x and noncv2x
-            # If I can see any of these objects, then return 0, if any of these objects is occluded return 0.5
-            # Else: (case no objects occluding but as a sender I might not know!)
-                # interpolate the line from center_cv2x and noncv2x corners into set of points
-                # if i cannot see any of these points due to occlusion with another object:
-                    # then return 0.5
-                # Else return 1 (no objects between them and I can see all points)
+        # Let L = list of objects occluding cv2x and noncv2x
+        # If I can see any of these objects, then return 0, if any of these objects is occluded return 0.5
+        # Else: (case no objects occluding but as a sender I might not know!)
+        # interpolate the line from center_cv2x and noncv2x corners into set of points
+        # if i cannot see any of these points due to occlusion with another object:
+        # then return 0.5
+        # Else return 1 (no objects between them and I can see all points)
         # Else
-            # return 0.5
+        # return 0.5
 
         # Validate that the vehicle is in the range of av receiver
         # receiver av must include its noise as this is estimated relative to the sender av which knows the receiver pos
@@ -292,27 +296,27 @@ class Vehicle:
                 # then return 0,
                 # if any of these objects is occluded return 0.5
                 line_sender_to_occluding_object = list(self.get_pos()) + get_new_abs_pos(self.get_pos(False),
-                                                                                       self.get_pos(),
-                                                                                       occlusion_vehicle.get_pos())
-
+                                                                                         self.get_pos(),
+                                                                                         occlusion_vehicle.get_pos())
                 for occlusion_vehicle_2 in vehicles_in_my_perception_range:
                     if occlusion_vehicle_2.vehicle_id == av.vehicle_id \
-                            or occlusion_vehicle_2.vehicle_id == nav.vehicle_id:
+                            or occlusion_vehicle_2.vehicle_id == nav.vehicle_id \
+                            or occlusion_vehicle_2.vehicle_id == occlusion_vehicle.vehicle_id:
                         continue
 
-                    if occlusion_vehicle_2.vehicle_id != occlusion_vehicle.vehicle_id:
-                        occlusion_vehicle2_corners = [get_new_abs_pos(self.get_pos(False), self.get_pos(), v) for v in
-                                                      occlusion_vehicle_2.get_vehicle_boundaries()]
-                        if does_line_intersect_polygon(line_sender_to_occluding_object, occlusion_vehicle2_corners):
-                            if random.random() > detection_probability: # not perceived
-                                continue
-                            else:
-                                return 0.5
+                    occlusion_vehicle2_corners = [get_new_abs_pos(self.get_pos(False), self.get_pos(), v) for v in
+                                                  occlusion_vehicle_2.get_vehicle_boundaries()]
+                    if does_line_intersect_polygon(line_sender_to_occluding_object, occlusion_vehicle2_corners):
+                        if random.random() > detection_probability:  # not perceived
+                            continue
                         else:
-                            if random.random() > detection_probability:  # not perceived
-                                continue
-                            else:
-                                return 0
+                            return 0.5
+                    else:
+                        # sender can see that there is an occluder between receiver AV and the nAV, thus return nLOS
+                        if random.random() > detection_probability:  # not perceived
+                            continue
+                        else:
+                            return 0
 
         buildings_in_sight = []
 
@@ -322,10 +326,10 @@ class Vehicle:
 
         interpolations = np.linspace(LoS[0:2],
                                      LoS[2:4],
-                                     int(euclidean_distance(LoS[0:2], LoS[2:4])*2))
+                                     int(euclidean_distance(LoS[0:2], LoS[2:4]) * 2))
 
         for occlusion_vehicle in vehicles_in_my_perception_range:
-            if occlusion_vehicle.vehicle_id == av.vehicle_id:
+            if occlusion_vehicle.vehicle_id == av.vehicle_id or occlusion_vehicle.vehicle_id == nav.vehicle_id:
                 continue
 
             occlusion_vehicle_corners = [get_new_abs_pos(self.get_pos(False), self.get_pos(), v)
@@ -348,7 +352,7 @@ class Vehicle:
 
             # self can see these points, but need to validate if an occlusion occurs.
 
-                # can be speeded up by reducing the buildings to only those in the viewing_range and FoV of self
+            # can be speeded up by reducing the buildings to only those in the viewing_range and FoV of self
 
         return 1
 
@@ -367,9 +371,10 @@ class Vehicle:
         invisibilities = np.array([does_line_intersect_polygon(line, building) for line in lines])
         return np.count_nonzero(invisibilities) >= 3
 
+
 if __name__ == '__main__':
     heading_unit_vector = [0, 1]
     a1 = inner_angle_between_two_vectors(heading_unit_vector, get_vector([0, 0], [4, -2]))
     a2 = inner_angle_between_two_vectors(get_vector([0, 0], [4, -2]), heading_unit_vector)
     print(a1, a2)
-    x=1
+    x = 1
