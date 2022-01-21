@@ -164,7 +164,7 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
         simulation_thread.start()
         list_threads.append(simulation_thread)
 
-    timeout = (len(maps) - (n - 1) * block_Size) * 5 * 60
+    timeout = (len(maps) - (n - 1) * block_Size) * 7 * 60
     print(f"Gonna wait {timeout} seconds for all threads")
     # timeout = block_Size * 1 * 60
     running_time = time.time()
@@ -172,6 +172,16 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
     while True:
         time_taken = time.time() - running_time
         remaining_time = timeout - time_taken
+
+        is_alive = False
+
+        for i in range(n):
+            if list_threads[i].is_alive():
+                is_alive = True
+                break
+
+        if not is_alive:
+            break
 
         if remaining_time < 0:
             for i in range(n):
@@ -183,8 +193,8 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
 
             break
 
-        time.sleep(remaining_time)
-        print(f"Thread {i} done!")
+        print(f"Waiting threads, sleep 3 sec. . .")
+        time.sleep(3)
 
     cmd = 'pkill sumo'
     os.system(cmd)
