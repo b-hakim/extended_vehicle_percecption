@@ -487,13 +487,6 @@ class Simulation:
             if self.hyper_params["save_visual"]:
                 viz.save_img(save_path)
 
-
-            print(tot_perceived_objects, tot_visible_objects)
-
-            traci.close()
-
-            return
-
             # 3) Solve which info to send to base station
             # 3.1) Calculate required information
             scores_per_cv2x, los_statuses = self.calculate_scores_per_cv2x(cv2x_perceived_non_cv2x_vehicles, cv2x_vehicles, non_cv2x_vehicles,
