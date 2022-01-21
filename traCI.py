@@ -48,7 +48,7 @@ class Simulation:
 
         for cv2x_vehicle in cv2x_vehicles:
             for non_cv2x_vehicle in non_cv2x_vehicles:
-                if cv2x_vehicle.has_in_perception_range(non_cv2x_vehicle, False, detection_probability=1):
+                if cv2x_vehicle.has_in_perception_range(non_cv2x_vehicle, False, False, detection_probability=1):
                     is_occluded = False
 
                     for building in buildings:
@@ -65,7 +65,7 @@ class Simulation:
                                     break
 
                     if not is_occluded:
-                        if cv2x_vehicle.has_in_perception_range(non_cv2x_vehicle, False, self.hyper_params["perception_probability"]):
+                        if cv2x_vehicle.has_in_perception_range(non_cv2x_vehicle, False, False, self.hyper_params["perception_probability"]):
                             if cv2x_vehicle.vehicle_id in cv2x_vehicles_perception:
                                 cv2x_vehicles_perception[cv2x_vehicle.vehicle_id].append(non_cv2x_vehicle.vehicle_id)
                             else:
@@ -144,7 +144,7 @@ class Simulation:
                 # This is considered as ignoring the sender camera and using location from the receiver GNSS location
                 # The receiver GNSS error is done inside the receiver get_pos
                 # The sender GNSS error affects the calculation of perceiving the receiver AV --> hence, param: True
-                if sender_av.has_in_perception_range(av[perceived_av_id], True,
+                if sender_av.has_in_perception_range(av[perceived_av_id], True, True,
                                                                self.hyper_params["perception_probability"]):
                     perceived_av.append(av[perceived_av_id])
 
@@ -487,6 +487,13 @@ class Simulation:
             if self.hyper_params["save_visual"]:
                 viz.save_img(save_path)
 
+
+            print(tot_perceived_objects, tot_visible_objects)
+
+            traci.close()
+
+            return
+
             # 3) Solve which info to send to base station
             # 3.1) Calculate required information
             scores_per_cv2x, los_statuses = self.calculate_scores_per_cv2x(cv2x_perceived_non_cv2x_vehicles, cv2x_vehicles, non_cv2x_vehicles,
@@ -674,8 +681,8 @@ class Simulation:
             # [correct_los, correct_nlos, incorrect_los, incorrect_nlos, unsure_los, unsure_nlos]
             break
 
-        if self.hyper_params["save_visual"]:
-            viz.save_img()
+        # if self.hyper_params["save_visual"]:
+        #     viz.save_img()
 
         # input("Simulation ended, close GUI?")
         print(f"Simulation #{self.sim_id} terminated!")#, scores_per_cv2x.items())
@@ -707,23 +714,24 @@ if __name__ == '__main__':
     hyper_params['save_gnss'] = False
 
 #############################################   GPS TEST   #############################################################
-    hyper_params['scenario_path'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test/test.net.xml"
-    hyper_params['scenario_map'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test/net.sumo.cfg"
-    hyper_params['scenario_polys'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test/map.poly.xml"
-    hyper_params["cv2x_N"] = 0.25
-    hyper_params["fov"] = 120
-    hyper_params["view_range"] = 75
-    # hyper_params["base_station_position"] = 1600, 600
-    hyper_params["base_station_position"] = (1150, 525)
-    hyper_params["num_RBs"] = 50
-    hyper_params['message_size'] = 2000*8
-    hyper_params['tot_num_vehicles'] = 100
-    hyper_params['time_threshold'] = 10
-    hyper_params['save_visual'] = True
-    hyper_params['noise_distance'] = 2
-    hyper_params['perception_probability'] = 1
-    hyper_params['estimate_detection_error'] = False
-    hyper_params['save_gnss'] = False
+    for noise in [0, 0.1, 0.5, 2, 5]:
+        hyper_params['scenario_path'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test/test.net.xml"
+        hyper_params['scenario_map'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test/net.sumo.cfg"
+        hyper_params['scenario_polys'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test/map.poly.xml"
+        hyper_params["cv2x_N"] = 0.25
+        hyper_params["fov"] = 120
+        hyper_params["view_range"] = 75
+        # hyper_params["base_station_position"] = 1600, 600
+        hyper_params["base_station_position"] = (1150, 525)
+        hyper_params["num_RBs"] = 50
+        hyper_params['message_size'] = 2000*8
+        hyper_params['tot_num_vehicles'] = 100
+        hyper_params['time_threshold'] = 10
+        hyper_params['save_visual'] = True
+        hyper_params['noise_distance'] = noise
+        hyper_params['perception_probability'] = 1
+        hyper_params['estimate_detection_error'] = False
+        hyper_params['save_gnss'] = False
 
-    sim = Simulation(hyper_params, "0_0")
-    sim.run()
+        sim = Simulation(hyper_params, "0_0")
+        sim.run(True)
