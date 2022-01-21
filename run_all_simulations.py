@@ -102,7 +102,7 @@ def run_simulation(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_
         if i != n_scenarios-1:
             print("#######################################################################################################")
 
-    print(f"Scenario toronto_0-2 took {time.time() - s} seconds")
+    print(f"Scenario toronto_0 - toronto_2 took {time.time() - s} seconds")
     print("#######################################################################################################\n")
 
 
@@ -166,7 +166,7 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
 
     for i in range(n):
         try:
-            list_threads[i].join(timeout=block_Size * 2 * 60)
+            list_threads[i].join(timeout=block_Size * 1 * 60)
             list_threads[i].terminate()
         except:
             print("except in thread")
@@ -203,14 +203,14 @@ if __name__ == '__main__':
                     maps.sort(key=lambda x: int(x.split('/')[-1]))
                     for p in maps:
                         paths = glob.glob(p+"/result*.txt")
-                        for p in paths:
-                            os.remove(p)
+                        for p2 in paths:
+                            os.remove(p2)
                         paths = glob.glob(p+"/map*.png")
-                        for p in paths:
-                            os.remove(p)
+                        for p2 in paths:
+                            os.remove(p2)
                         paths = glob.glob(p+"/GNSS*.pkl")
-                        for p in paths:
-                            os.remove(p)
+                        for p2 in paths:
+                            os.remove(p2)
 
         start_time = time.time()
 
@@ -223,12 +223,12 @@ if __name__ == '__main__':
                            estimate_detection_error=False, use_saved_seed=True, noise_distance=noise, repeat=False)
 
         #########################################   Error Detection   ##################################################
-        base_dir = '/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto'
-        for perc_porb in [0.9, 0.85]:
-            for ede in [False, True]:
-                print(f"Simulation perception probability: {perc_porb} and estimate detection error {ede}")
-                run_simulation(base_dir=base_dir, cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100, tot_num_vehicles=100,
-                               perception_probability=perc_porb, estimate_detection_error=ede, use_saved_seed=True)
+        # base_dir = '/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto'
+        # for perc_porb in [0.9, 0.85]:
+        #     for ede in [False, True]:
+        #         print(f"Simulation perception probability: {perc_porb} and estimate detection error {ede}")
+        #         run_simulation(base_dir=base_dir, cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100, tot_num_vehicles=100,
+        #                        perception_probability=perc_porb, estimate_detection_error=ede, use_saved_seed=True)
 
         # #############################################    FOV     #####################################################
         # for fov in [60, 90, 120, 240, 360]:
