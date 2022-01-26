@@ -46,7 +46,7 @@ def verify_results_exists(path, cv2x_percentage=0.35, fov=120, view_range=75, nu
 
 
 def save_plot(path, results_summary_dir, cv2x_percentage=0.35, fov=120, view_range=75, num_RBs=20, tot_num_vehicles=150, time_threshold=10,
-              perception_probability=1, estimate_detection_error=False, noise_distance=0, experiment_type=None):
+              perception_probability=1, estimate_detection_error=False, noise_distance=0, experiment_type=None, continous_probability=False):
 
     if not os.path.isdir(results_summary_dir):
         os.makedirs(results_summary_dir)
@@ -100,6 +100,7 @@ def save_plot(path, results_summary_dir, cv2x_percentage=0.35, fov=120, view_ran
                                     + ("_ede" if estimate_detection_error else "_nede")
                                     + "_" + str(noise_distance)
                                     + ("_egps" if noise_distance!=0 else "")
+                                    + ("_cont_prob" if continous_probability else "_discont_prob")
                                     + ".txt")
 
         # print(results_path, os.path.isfile(results_path))
@@ -404,25 +405,26 @@ if __name__ == '__main__':
     #                       tot_num_vehicles=100, time_threshold=10, perception_probability=perception_probability,
     #                       estimate_detection_error=estimate_detection_error, noise_distance=None)
     # ###########################################     FOV    ###########################################################
-    # for fov in [60, 90, 120, 240, 360]:
-    #     # verify_results_exists(f'/media/bassel/E256341D5633F0C1/toronto_fov/toronto', cv2x_percentage=0.65, fov=fov, view_range=75,
-    #     #           num_RBs=100, tot_num_vehicles=100, time_threshold=10, perception_probability=1,
-    #     #           estimate_detection_error=False, noise_distance=0)
-    #     save_plot(f'/media/bassel/E256341D5633F0C1/toronto_fov/toronto',
-    #               f'/media/bassel/E256341D5633F0C1/toronto_fov/results_summary',
-    #               cv2x_percentage=0.65, fov=fov, view_range=75,
-    #               num_RBs=100, tot_num_vehicles=100, time_threshold=10, perception_probability=1,
-    #               estimate_detection_error=False, noise_distance=0, experiment_type=SIMULATION_TYPE.FOV)
+    for fov in [60, 90, 120, 240, 360]:
+        for prob in [True, False]:
+            # verify_results_exists(f'/media/bassel/E256341D5633F0C1/toronto_fov/toronto', cv2x_percentage=0.65, fov=fov, view_range=75,
+            #           num_RBs=100, tot_num_vehicles=100, time_threshold=10, perception_probability=1,
+            #           estimate_detection_error=False, noise_distance=0)
+            save_plot(f'/media/bassel/E256341D5633F0C1/toronto_fov/toronto',
+                      f'/media/bassel/E256341D5633F0C1/toronto_fov/results_summary',
+                      cv2x_percentage=0.65, fov=fov, view_range=75,
+                      num_RBs=100, tot_num_vehicles=100, time_threshold=10, perception_probability=1,
+                      estimate_detection_error=False, noise_distance=0, experiment_type=SIMULATION_TYPE.FOV, continous_probability=prob)
     ############################################     GPS    ############################################################
-    for noise in [0, 0.1, 0.5, 2, 5]:
-        # verify_results_exists(f'/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto', cv2x_percentage=0.65, fov=120,
-        #                       view_range=75, num_RBs=100, tot_num_vehicles=100, time_threshold=10,
-        #                       perception_probability=1, estimate_detection_error=False, noise_distance=noise)
-        save_plot(f'/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto',
-                  f'/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/results_summary',
-                  cv2x_percentage=0.65, fov=120, view_range=75,
-                  num_RBs=100, tot_num_vehicles=100, time_threshold=10, perception_probability=1,
-                  estimate_detection_error=False, noise_distance=noise, experiment_type=SIMULATION_TYPE.GPS)
+    # for noise in [0, 0.1, 0.5, 2, 5]:
+    #     # verify_results_exists(f'/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto', cv2x_percentage=0.65, fov=120,
+    #     #                       view_range=75, num_RBs=100, tot_num_vehicles=100, time_threshold=10,
+    #     #                       perception_probability=1, estimate_detection_error=False, noise_distance=noise)
+    #     save_plot(f'/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto',
+    #               f'/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/results_summary',
+    #               cv2x_percentage=0.65, fov=120, view_range=75,
+    #               num_RBs=100, tot_num_vehicles=100, time_threshold=10, perception_probability=1,
+    #               estimate_detection_error=False, noise_distance=noise, experiment_type=SIMULATION_TYPE.GPS)
     ####################################################################################################################
 
     # save_plot('/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto/toronto_0',

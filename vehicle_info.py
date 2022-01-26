@@ -250,7 +250,7 @@ class Vehicle:
         return np.array([angle <= self.fov / 2 for angle in angles]).any()
 
     def calculate_probability_av_sees_nav(self, av, nav, vehicles_in_my_perception_range,
-                                          buildings, detection_probability):
+                                          buildings, detection_probability, continous_probability):
         # First make sure that the cv2x can see the non_cv2x i.e. inside viewing range and FoV
         # If the cv2x and the non_cv2x are both located inside the viewing range and FoV of self, then
         # Let L = list of objects occluding cv2x and noncv2x
@@ -270,19 +270,28 @@ class Vehicle:
                                           noise=(self.get_pos(False), self.get_pos())):
             return 0
 
+        if not continous_probability:
+            uncertain_probability = 0.5
+        else:
+            d = euclidean_distance(av.get_pos(), nav.get_pos())
+            if d < 1:
+                d = 1
+            uncertain_probability = 1/d
+
         if not self.has_in_perception_range(av, True, True, detection_probability=1):
-            return 0.5
+            return uncertain_probability
+            # return 0.5
 
-        non_cv2x_vehicle_corners = nav.get_vehicle_boundaries(False) # False as this is a nav
-
-        lines = [list(av.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
-                                                      non_cv2x_vehicle_corners[0].tolist()),
-                 list(av.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
-                                                      non_cv2x_vehicle_corners[1].tolist()),
-                 list(av.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
-                                                      non_cv2x_vehicle_corners[2].tolist()),
-                 list(av.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
-                                                      non_cv2x_vehicle_corners[3].tolist())]
+        # non_cv2x_vehicle_corners = nav.get_vehicle_boundaries(False) # False as this is a nav
+        #
+        # lines = [list(av.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
+        #                                               non_cv2x_vehicle_corners[0].tolist()),
+        #          list(av.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
+        #                                               non_cv2x_vehicle_corners[1].tolist()),
+        #          list(av.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
+        #                                               non_cv2x_vehicle_corners[2].tolist()),
+        #          list(av.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(),
+        #                                               non_cv2x_vehicle_corners[3].tolist())]
 
         LoS = list(av.get_pos()) + get_new_abs_pos(self.get_pos(False), self.get_pos(), nav.get_pos())
 
@@ -313,7 +322,8 @@ class Vehicle:
                         if random.random() > detection_probability:  # not perceived
                             continue
                         else:
-                            return 0.5
+                            return uncertain_probability
+                            # return 0.5
                     else:
                         # sender can see that there is an occluder between receiver AV and the nAV, thus return nLOS
                         if random.random() > detection_probability:  # not perceived
@@ -345,14 +355,16 @@ class Vehicle:
                     if random.random() > detection_probability:  # not perceived
                         continue
                     else:
-                        return 0.5
+                        return uncertain_probability
+                        # return 0.5
 
         for building in buildings_in_sight:
             for point in interpolations:
                 line_sender_to_interpolated_point = list(self.get_pos()) + point.tolist()
 
                 if does_line_intersect_polygon(line_sender_to_interpolated_point, building.shape):
-                    return 0.5
+                    return uncertain_probability
+                    # return 0.5
 
             # self can see these points, but need to validate if an occlusion occurs.
 

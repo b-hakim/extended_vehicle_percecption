@@ -167,7 +167,8 @@ class Simulation:
                                                                     perceived_nav,
                                                                     remaining_perceived_nav + perceived_av,
                                                                     buildings,
-                                                                    self.hyper_params["perception_probability"])
+                                                                    self.hyper_params["perception_probability"],
+                                                                    self.hyper_params["continous_probability"])
 
                     if p == 1:
                         # if sender sees that LOS between receiver and perceived_obj and is LOS then correct LOS ++
@@ -189,7 +190,7 @@ class Simulation:
                                 correct_nlos += 1
                         else:
                             correct_nlos += 1
-                    elif p == 0.5:
+                    else:
                         if receiver_av_id in av_perceiving_nav_vehicles:
                             if perceived_nav_id in av_perceiving_nav_vehicles[receiver_av_id]:
                                 unsure_los += 1
@@ -483,6 +484,7 @@ class Simulation:
                                      + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
                                      + "_" + str(self.hyper_params["noise_distance"])
                                      + ("_egps" if self.hyper_params["noise_distance"] != 0 else "")
+                                     + ("_cont_prob" if self.hyper_params["continous_probability"] else "_discont_prob")
                                      + ".png")
             if self.hyper_params["save_visual"]:
                 viz.save_img(save_path)
@@ -574,6 +576,7 @@ class Simulation:
                                      + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
                                      + "_" + str(self.hyper_params["noise_distance"])
                                      + ("_egps" if self.hyper_params["noise_distance"] != 0 else "")
+                                     + ("_cont_prob" if self.hyper_params["continous_probability"] else "_discont_prob")
                                      +".txt")
 
             sent, unsent, selected_messages_requests = solver.find_optimal_assignment(save_path)
@@ -725,6 +728,7 @@ if __name__ == '__main__':
         hyper_params['perception_probability'] = 1
         hyper_params['estimate_detection_error'] = False
         hyper_params['save_gnss'] = False
+        hyper_params['continous_probability'] = True
 
         sim = Simulation(hyper_params, "0_0")
         sim.run(True)

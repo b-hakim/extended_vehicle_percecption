@@ -12,7 +12,7 @@ from traCI import Simulation
 class RunSimulationProcess(multiprocessing.Process):
     def __init__(self, map, cv2x_percentage, fov, view_range, num_RBs, tot_num_vehicles, id, time_threshold,
                  perception_probability=1.0, estimate_detection_error=False, use_saved_seed=False, save_gnss=False,
-                 noise_distance=0, repeat=False):
+                 noise_distance=0, repeat=False, cont_prob=False):
         # multiprocessing.Process.__init__(self)
         super(RunSimulationProcess, self).__init__()
 
@@ -33,6 +33,7 @@ class RunSimulationProcess(multiprocessing.Process):
         self.save_gnss = save_gnss
         self.noise_distance = noise_distance
         self.repeat = repeat
+        self.cont_prob = cont_prob
 
 
     def run(self):
@@ -57,6 +58,7 @@ class RunSimulationProcess(multiprocessing.Process):
             hyper_params["estimate_detection_error"] = self.estimate_detection_error
             hyper_params["save_gnss"] = self.save_gnss
             hyper_params["noise_distance"] = self.noise_distance
+            hyper_params["continous_probability"] = self.cont_prob
 
             with open(os.path.join(traffic,"basestation_pos.txt"), 'r') as fr:
                 hyper_params["base_station_position"] = literal_eval(fr.readline())
@@ -72,6 +74,7 @@ class RunSimulationProcess(multiprocessing.Process):
                                         + ("_ede" if hyper_params["estimate_detection_error"] else "_nede")
                                         + "_" + str(hyper_params["noise_distance"])
                                         + ("_egps" if hyper_params["noise_distance"] else "")
+                                        + ("_cont_prob" if hyper_params["continous_probability"] else "_discont_prob")
                                         + ".txt")
 
             if os.path.isfile(results_path) and not self.repeat:
@@ -89,7 +92,7 @@ class RunSimulationProcess(multiprocessing.Process):
 
 def run_simulation(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_vehicles,
                    perception_probability=1, estimate_detection_error=False, use_saved_seed=False, save_gnss=False,
-                   noise_distance=0, repeat=False):
+                   noise_distance=0, repeat=False, cont_prob=False):
     n_scenarios = 3
     s = time.time()
 
@@ -97,7 +100,7 @@ def run_simulation(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_
         print(f"Scenario: toronto_{i}")
         run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_RBs,
                                     tot_num_vehicles, i, perception_probability, estimate_detection_error,
-                                    use_saved_seed, save_gnss, noise_distance, repeat)
+                                    use_saved_seed, save_gnss, noise_distance, repeat, cont_prob)
 
         if i != n_scenarios-1:
             print("#######################################################################################################")
@@ -108,7 +111,7 @@ def run_simulation(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_
 
 def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_vehicles,
                                 scenario_num, perception_probability, estimate_detection_error,
-                                use_saved_seed=False, save_gnss=False, noise_distance=0, repeat=False):
+                                use_saved_seed=False, save_gnss=False, noise_distance=0, repeat=False, cont_prob=False):
     time_threshold = 10
     n_threads = 12
     path = f"{base_dir}/toronto_{scenario_num}/"
@@ -131,6 +134,7 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
                                         + ("_ede" if estimate_detection_error else "_nede")
                                         + "_" + str(noise_distance)
                                         + ("_egps" if noise_distance else "")
+                                        + ("_cont_prob" if cont_prob else "_discont_prob")
                                         + ".txt")
 
             if not os.path.isfile(results_path):
@@ -160,7 +164,7 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
                                                  perception_probability=perception_probability,
                                                  estimate_detection_error=estimate_detection_error,
                                                  use_saved_seed=use_saved_seed, save_gnss=save_gnss,
-                                                 noise_distance=noise_distance, repeat=repeat)
+                                                 noise_distance=noise_distance, repeat=repeat, cont_prob=cont_prob)
         simulation_thread.start()
         list_threads.append(simulation_thread)
 
@@ -238,12 +242,13 @@ if __name__ == '__main__':
         start_time = time.time()
 
         ################################################   GPS   #######################################################
-        base_dir = '/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto'
-        for noise in [0, 0.1, 0.5, 2, 5]:
-            print(f"Simulation noise: {noise}")
-            run_simulation(base_dir, cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100,
-                           tot_num_vehicles=100, perception_probability=1,
-                           estimate_detection_error=False, use_saved_seed=True, noise_distance=noise, repeat=False)
+        # base_dir = '/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto'
+        # for noise in [0, 0.1, 0.5, 2, 5]:
+        #     print(f"Simulation noise: {noise}")
+        #     run_simulation(base_dir, cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100,
+        #                    tot_num_vehicles=100, perception_probability=1,
+        #                    estimate_detection_error=False, use_saved_seed=True, noise_distance=noise, repeat=False,
+        #                    continous_probability=False)
 
         #########################################   Error Detection   ##################################################
         # base_dir = '/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto'
@@ -254,18 +259,19 @@ if __name__ == '__main__':
         #                        perception_probability=perc_porb, estimate_detection_error=ede, use_saved_seed=True)
 
         # #############################################    FOV     #####################################################
-        # for fov in [60, 90, 120, 240, 360]:
-        # # for fov in [240, 360, 60, 90, 120]:
-        #     print(f"Simulation fov: {fov}")
-        #     run_simulation(base_dir="/media/bassel/E256341D5633F0C1/toronto_fov/toronto",
-        #                    cv2x_percentage=0.65, fov=fov, view_range=75, num_RBs=100, tot_num_vehicles=100,
-        #                    perception_probability=1, estimate_detection_error=False, use_saved_seed=True,
-        #                    save_gnss=False, noise_distance=0)
-        #
-        #     e = time.time()
-        #
-        #     print(f"Scenario toronto_0-9 took {e - s} seconds")
-        #     print("")
+        for fov in [60, 90, 120, 240, 360]:
+            for prob in [False, True]:
+                s = time.time()
+                print(f"Simulation fov: {fov}")
+                run_simulation(base_dir="/media/bassel/E256341D5633F0C1/toronto_fov/toronto",
+                               cv2x_percentage=0.65, fov=fov, view_range=75, num_RBs=100, tot_num_vehicles=100,
+                               perception_probability=1, estimate_detection_error=False, use_saved_seed=True,
+                               save_gnss=False, noise_distance=0, cont_prob=prob)
+
+                e = time.time()
+
+                print(f"Scenario toronto_0-9 took {e - s} seconds")
+                print("")
 
         # ######################################   Test    ###############################################################
         # p = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test"
