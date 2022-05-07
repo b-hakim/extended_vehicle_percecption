@@ -174,3 +174,23 @@ def get_new_abs_pos(sender_pos, sender_noisy_pos, obj_pos):
     abs_obj_noisy_pos = rel_obj_pos + sender_noisy_pos
 
     return abs_obj_noisy_pos.tolist()
+
+
+def get_polygon_area(poly_pts):
+    sum1, sum2 = 0, 0
+    # poly_pts = [(-3, -2), (-1, 4), (6, 1), (3, 10), (-4, 9)][::-1]
+    # poly_pts.insert(0, poly_pts[-1])
+    poly_pts.append(poly_pts[0])
+
+    # for i in range(-1, -len((poly_pts)), -1):
+    for i in range(len((poly_pts))-1):
+        sum1 += poly_pts[i][0]*poly_pts[i+1][1]
+        sum2 += poly_pts[i][1]*poly_pts[i+1][0]
+
+    area = (sum2-sum1)/2
+
+    if area < 0:
+        print("area less than a zero")
+        exit()
+
+    return area

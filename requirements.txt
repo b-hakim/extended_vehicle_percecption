@@ -4,3 +4,4 @@ ortools
 opencv-python
 sumolib
 traci
+nashpy

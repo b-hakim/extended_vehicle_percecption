@@ -4,6 +4,6 @@ polyconvert --net-file test.net.xml --osm-files map.osm --type-file typemap.xml 
 
 codna activate sumo
 
-python randomTrips.py -n test.net.xml -r map.rou.xml -e 1000 -l --validate -p 50 -b 0-e 2
+python randomTrips.py -n test.net.xml -r map.rou.xml -e 1000 -l --validate -p 50 -b 0 -e 20 --trip-attributes=\"type=\"typedist1\"\" --additional-file typedistrib1.xml 
 
 sumo-gui net.sumo.cfg

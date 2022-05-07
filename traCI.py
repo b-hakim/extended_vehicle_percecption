@@ -119,7 +119,7 @@ class Simulation:
         if min_dist_edge is None:
             return 0
 
-        t = 3600 * ((min_dist+0.0000001)/40000) # get time in seconds for a speed of 40km/h
+        t = (min_dist+0.0000001)/self.hyper_params["avg_speed_sec"] # get time in seconds for a speed of 40km/h
 
         if t > time_threshold:
             return 0
@@ -207,12 +207,11 @@ class Simulation:
                     p = 1 - p # set to 0 if cv2x sees the object to be sent
 
                     if p == 0:
-                        scores.append((receiver_av_id, 0, perceived_nav))
+                        scores.append((receiver_av_id, 0, perceived_nav, p))
                     else:
-                        scores.append((receiver_av_id,
-                                       self.get_interest_cv2x_in_vehicle(receiver_av,
-                                                                         perceived_nav, p, time_threshold),
-                                       perceived_nav))
+                        v = self.get_interest_cv2x_in_vehicle(receiver_av,
+                                                          perceived_nav, p, time_threshold)
+                        scores.append((receiver_av_id, v, perceived_nav, p))
 
                 if receiver_is_in_sender_perception_area:
                     perceived_av.append(av[receiver_av_id])
@@ -232,7 +231,13 @@ class Simulation:
 
             cv2x_dist_to_segment = traci.simulation.findRoute(list_destination_edges[0], destination_edge).length
 
-            if list_destination_edges[0][0] != ":":
+            if list_destination_edges[0][0] == ":":
+                if cv2x_dist_to_segment == 0:
+                    first_edge = self.net.getEdge(list_destination_edges[1])
+                    dist_closer_point = max(euclidean_distance(cv2x_veh_pos, first_edge.getShape()[0]),
+                                                            euclidean_distance(cv2x_veh_pos, first_edge.getShape()[1]))
+                    cv2x_dist_to_segment += dist_closer_point
+            else:
                 first_edge = self.net.getEdge(list_destination_edges[0])
                 if not in_and_near_edge(cv2x_veh_pos, first_edge.getShape()):
                     # this means there is an error in the start position of the edge,
@@ -420,6 +425,8 @@ class Simulation:
             for vid in need_to_remove:
                 vehicles.pop(vid)
 
+            # print(len(vehicle_ids))
+
             if len(vehicle_ids) < self.hyper_params['tot_num_vehicles']:
                 continue
 
@@ -436,12 +443,15 @@ class Simulation:
             # print(cv2x_vehicles_indexes)
             show_id = None
 
+            path = os.path.dirname(self.hyper_params['scenario_path'])
+
             if self.hyper_params["save_visual"]:
                 for cv2x_id, vehicle in cv2x_vehicles.items():
                     if cv2x_id != show_id and show_id is not None:
                         continue
 
                     viz.draw_vehicle_perception(vehicle, (185, 218, 255))
+
 
             # 2) Get seen non-cv2x vehicles by each cv2x_vehicle
             cv2x_perceived_non_cv2x_vehicles, cv2x_vehicles_perception_visible = self.get_seen_vehicles(list(cv2x_vehicles.values()),
@@ -493,6 +503,15 @@ class Simulation:
             # 3.1) Calculate required information
             scores_per_cv2x, los_statuses = self.calculate_scores_per_cv2x(cv2x_perceived_non_cv2x_vehicles, cv2x_vehicles, non_cv2x_vehicles,
                                                              buildings, self.hyper_params['time_threshold'])
+
+            if not os.path.isdir(os.path.join(path, "saved_state")):
+                os.makedirs(os.path.join(path, "saved_state"))
+
+            with open(os.path.join(path, "saved_state", "cv2x_non_buildings.pkl"), 'wb') as fw:
+                pickle.dump((cv2x_vehicles, non_cv2x_vehicles, buildings, cv2x_perceived_non_cv2x_vehicles, scores_per_cv2x, los_statuses), fw)
+
+            break
+
             # Count number of perceived
             perceived_but_considered_to_send = 0
             not_perceived_but_visible_considered_to_send = 0
@@ -691,44 +710,28 @@ if __name__ == '__main__':
     # hyper_params['scenario_path'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test/test.net.xml"
     # hyper_params['scenario_map'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test/net.sumo.cfg"
     # hyper_params['scenario_polys'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test/map.poly.xml"
-    hyper_params['scenario_path'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto/toronto_4/0/test.net.xml"
-    hyper_params['scenario_map'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto/toronto_4/0/net.sumo.cfg"
-    hyper_params['scenario_polys'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto/toronto_4/0/map.poly.xml"
-    hyper_params["cv2x_N"] = 0.25
+    basedir = '/media/bassel/Career/toronto_content_selection/toronto/toronto_1/78/'
+    basedir = '/media/bassel/Career/toronto_content_selection/toronto_dense/toronto_1/0/'
+    hyper_params['scenario_path'] = basedir + "test.net.xml"
+    hyper_params['scenario_map'] =  basedir + "net.sumo.cfg"
+    hyper_params['scenario_polys'] = basedir + "map.poly.xml"
+    hyper_params["cv2x_N"] = 0.65
     hyper_params["fov"] = 120
     hyper_params["view_range"] = 75
     # hyper_params["base_station_position"] = 1600, 600
-    hyper_params["base_station_position"] = (650, 500)
-    hyper_params["num_RBs"] = 30
+    hyper_params["base_station_position"] = (2034, 1712)
+    hyper_params["num_RBs"] = 100
     hyper_params['message_size'] = 2000*8
-    hyper_params['tot_num_vehicles'] = 150
+    hyper_params['tot_num_vehicles'] = 100
     hyper_params['time_threshold'] = 10
     hyper_params['save_visual'] = True
     hyper_params['noise_distance'] = 0
     hyper_params['perception_probability'] = 1
     hyper_params['estimate_detection_error'] = False
     hyper_params['save_gnss'] = False
+    hyper_params['continous_probability'] = False
 
-#############################################   GPS TEST   #############################################################
-    for noise in [0, 0.1, 0.5, 2, 5]:
-        hyper_params['scenario_path'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test/test.net.xml"
-        hyper_params['scenario_map'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test/net.sumo.cfg"
-        hyper_params['scenario_polys'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test/map.poly.xml"
-        hyper_params["cv2x_N"] = 0.25
-        hyper_params["fov"] = 120
-        hyper_params["view_range"] = 75
-        # hyper_params["base_station_position"] = 1600, 600
-        hyper_params["base_station_position"] = (1150, 525)
-        hyper_params["num_RBs"] = 50
-        hyper_params['message_size'] = 2000*8
-        hyper_params['tot_num_vehicles'] = 100
-        hyper_params['time_threshold'] = 10
-        hyper_params['save_visual'] = True
-        hyper_params['noise_distance'] = noise
-        hyper_params['perception_probability'] = 1
-        hyper_params['estimate_detection_error'] = False
-        hyper_params['save_gnss'] = False
-        hyper_params['continous_probability'] = True
+    # while True:
+    sim = Simulation(hyper_params, "1_0")
+    sim.run(False)
 
-        sim = Simulation(hyper_params, "0_0")
-        sim.run(True)

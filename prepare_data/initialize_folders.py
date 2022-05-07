@@ -21,14 +21,20 @@ class myThread (threading.Thread):
                 os.system(
                     "cd " + dirname + " && pwd && netconvert --osm-files map.osm -o test.net.xml -t osmNetconvert.typ.xml --xml-validation never &&"
                                       "polyconvert --net-file test.net.xml --osm-files map.osm --type-file typemap.xml -o map.poly.xml --xml-validation never &&"
-                                      "python randomTrips.py --random -n test.net.xml -r map.rou.xml -o trips.trips.xml --fringe-factor 2 --min-distance 100 --validate -p 0.1 -b 0 -e 20")
+                                      "python randomTrips.py --random -n test.net.xml -r map.rou.xml -o trips.trips.xml --fringe-factor 2 --min-distance 100 "
+                                      "--validate -p 0.01 -b 0 -e 20 "
+                                      "--trip-attributes=\"type=\\\"typedist1\\\"\" --additional-file typedistrib1.xml")
 
 
-path = '/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto'
+# path = '/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto'
+path = '/media/bassel/Career/toronto_content_selection/toronto'
+# path = '/media/bassel/Career/toronto_content_selection/toronto_dense'
+# path = '/media/bassel/Career/toronto_content_selection/toronto_more_busses'
 maps = '/media/bassel/Entertainment/sumo_traffic/sumo_map/raw_toronto_map'
 
 if os.path.exists(path):
     shutil.rmtree(path, True)
+
 os.makedirs(path)
 
 file_names = os.listdir(maps)
@@ -53,10 +59,11 @@ for i, (map_name, base_pos_name) in enumerate(zip(map_file_names, base_pos_file_
         shutil.copy(maps + "/" + base_pos_name, dirname + "/basestation_pos.txt")
 
 src_files = ['/media/bassel/Entertainment/sumo_traffic/sumo_map/default/net.sumo.cfg',
-'/media/bassel/Entertainment/sumo_traffic/sumo_map/default/net2geojson.py',
-'/media/bassel/Entertainment/sumo_traffic/sumo_map/default/osmNetconvert.typ.xml',
-'/media/bassel/Entertainment/sumo_traffic/sumo_map/default/randomTrips.py',
-'/media/bassel/Entertainment/sumo_traffic/sumo_map/default/typemap.xml']
+            '/media/bassel/Entertainment/sumo_traffic/sumo_map/default/net2geojson.py',
+            '/media/bassel/Entertainment/sumo_traffic/sumo_map/default/osmNetconvert.typ.xml',
+            '/media/bassel/Entertainment/sumo_traffic/sumo_map/default/randomTrips.py',
+            '/media/bassel/Entertainment/sumo_traffic/sumo_map/default/typemap.xml',
+            '/media/bassel/Entertainment/sumo_traffic/sumo_map/default/typedistrib1.xml']
 
 n_threads = 12
 n = n_threads if n_threads<len(map_file_names) else len(map_file_names)

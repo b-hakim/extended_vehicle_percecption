@@ -45,6 +45,34 @@ def verify_results_exists(path, cv2x_percentage=0.35, fov=120, view_range=75, nu
             print("Missing:", results_path)
 
 
+def verify_states_exists(path):
+    import pickle
+    # loop on all files
+    # print un-existing results file
+
+    scenarios_dirs = os.listdir(path)
+    scenarios_dirs.sort()
+    scenarios_dirs = scenarios_dirs[:3]
+
+    if len(scenarios_dirs) == 3:
+        scenarios_dirs = [[path+"/"+p+"/"+pp for pp in os.listdir(path+"/"+p)] for p in scenarios_dirs]
+        scenarios_dirs = np.array(scenarios_dirs).reshape(-1).tolist()
+
+    scenarios_dirs.sort()
+
+    for path in scenarios_dirs:
+        state_path = os.path.join(path, "saved_state", "cv2x_non_buildings.pkl")
+
+        if not os.path.isfile(state_path):
+            print("Missing:", state_path)
+
+        try:
+            with open(os.path.join(path, "saved_state", "cv2x_non_buildings.pkl"), 'rb') as fw:
+                cv2x_vehicles, non_cv2x_vehicles, buildings, cv2x_perceived_non_cv2x_vehicles, scores_per_cv2x, los_statuses = pickle.load(fw)
+        except:
+            print("Missing:", state_path)
+
+
 def save_plot(path, results_summary_dir, cv2x_percentage=0.35, fov=120, view_range=75, num_RBs=20, tot_num_vehicles=150, time_threshold=10,
               perception_probability=1, estimate_detection_error=False, noise_distance=0, experiment_type=None, continous_probability=False):
 
@@ -52,7 +80,7 @@ def save_plot(path, results_summary_dir, cv2x_percentage=0.35, fov=120, view_ran
         os.makedirs(results_summary_dir)
 
     scenarios_dirs = os.listdir(path)
-
+    scenarios_dirs.sort()
     if len(scenarios_dirs) == 10:
         scenarios_dirs = scenarios_dirs[:3]
         scenarios_dirs = [[path+"/"+p+"/"+pp for pp in os.listdir(path+"/"+p)] for p in scenarios_dirs]
@@ -145,13 +173,15 @@ def save_plot(path, results_summary_dir, cv2x_percentage=0.35, fov=120, view_ran
         visible_sent_y.append(avg_visible_considered_sending/count)
         # percentage_sent_seen_y.append(100*(avg_sent/count)/(avg_perceived/count))
 
+    prob_fun_mode = 'cont_prob' if continous_probability else 'discont_prob'
+
     if experiment_type==SIMULATION_TYPE.DETECTION:
         summary_name = f"{results_summary_dir}/summary_{cv2x_percentage}_{num_RBs}_{perception_probability}" \
-                       f"_{'_ede' if estimate_detection_error else '_nede'}.txt"
+                       f"_{'ede' if estimate_detection_error else 'nede'}_{prob_fun_mode}.txt"
     elif experiment_type==SIMULATION_TYPE.FOV:
-        summary_name = f"{results_summary_dir}/summary_{cv2x_percentage}_{num_RBs}_{fov}.txt"
+        summary_name = f"{results_summary_dir}/summary_{cv2x_percentage}_{num_RBs}_{fov}_{prob_fun_mode}.txt"
     elif experiment_type==SIMULATION_TYPE.GPS:
-        summary_name = f"{results_summary_dir}/summary_{cv2x_percentage}_{num_RBs}_{noise_distance}.txt"
+        summary_name = f"{results_summary_dir}/summary_{cv2x_percentage}_{num_RBs}_{noise_distance}_{prob_fun_mode}.txt"
 
     # plt.figure()
     # plt.plot(x, sent_y)
@@ -405,16 +435,19 @@ if __name__ == '__main__':
     #                       tot_num_vehicles=100, time_threshold=10, perception_probability=perception_probability,
     #                       estimate_detection_error=estimate_detection_error, noise_distance=None)
     # ###########################################     FOV    ###########################################################
-    for fov in [60, 90, 120, 240, 360]:
-        for prob in [True, False]:
-            # verify_results_exists(f'/media/bassel/E256341D5633F0C1/toronto_fov/toronto', cv2x_percentage=0.65, fov=fov, view_range=75,
-            #           num_RBs=100, tot_num_vehicles=100, time_threshold=10, perception_probability=1,
-            #           estimate_detection_error=False, noise_distance=0)
-            save_plot(f'/media/bassel/E256341D5633F0C1/toronto_fov/toronto',
-                      f'/media/bassel/E256341D5633F0C1/toronto_fov/results_summary',
-                      cv2x_percentage=0.65, fov=fov, view_range=75,
-                      num_RBs=100, tot_num_vehicles=100, time_threshold=10, perception_probability=1,
-                      estimate_detection_error=False, noise_distance=0, experiment_type=SIMULATION_TYPE.FOV, continous_probability=prob)
+    # for fov in [60, 90, 120, 240, 360]:
+    #     for prob in [False, True]:
+    #         # verify_results_exists(f'/media/bassel/E256341D5633F0C1/toronto_fov/toronto', cv2x_percentage=0.65, fov=fov, view_range=75,
+    #         #           num_RBs=100, tot_num_vehicles=100, time_threshold=10, perception_probability=1,
+    #         #           estimate_detection_error=False, noise_distance=0)
+    #         save_plot(f'/home/bassel/toronto_fov/toronto',
+    #                   f'/home/bassel/toronto_fov/results_summary',
+    #                   cv2x_percentage=0.65, fov=fov, view_range=75,
+    #                   num_RBs=100, tot_num_vehicles=100, time_threshold=10, perception_probability=1,
+    #                   estimate_detection_error=False, noise_distance=0, experiment_type=SIMULATION_TYPE.FOV,
+    #                   continous_probability=prob)
+    ####################################################################################################################
+    verify_states_exists("/media/bassel/Career/toronto_content_selection/toronto")
     ############################################     GPS    ############################################################
     # for noise in [0, 0.1, 0.5, 2, 5]:
     #     # verify_results_exists(f'/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto', cv2x_percentage=0.65, fov=120,

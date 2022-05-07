@@ -12,7 +12,7 @@ from traCI import Simulation
 class RunSimulationProcess(multiprocessing.Process):
     def __init__(self, map, cv2x_percentage, fov, view_range, num_RBs, tot_num_vehicles, id, time_threshold,
                  perception_probability=1.0, estimate_detection_error=False, use_saved_seed=False, save_gnss=False,
-                 noise_distance=0, repeat=False, cont_prob=False):
+                 noise_distance=0, repeat=False, cont_prob=False, avg_speed_sec=3600/40000):
         # multiprocessing.Process.__init__(self)
         super(RunSimulationProcess, self).__init__()
 
@@ -34,7 +34,7 @@ class RunSimulationProcess(multiprocessing.Process):
         self.noise_distance = noise_distance
         self.repeat = repeat
         self.cont_prob = cont_prob
-
+        self.avg_speed_sec = avg_speed_sec
 
     def run(self):
         print(f"Simulation Thread {str(self.sim_id)} started with a batchsize={len(self.traffics)} ")
@@ -59,6 +59,7 @@ class RunSimulationProcess(multiprocessing.Process):
             hyper_params["save_gnss"] = self.save_gnss
             hyper_params["noise_distance"] = self.noise_distance
             hyper_params["continous_probability"] = self.cont_prob
+            hyper_params["avg_speed_sec"] = self.avg_speed_sec
 
             with open(os.path.join(traffic,"basestation_pos.txt"), 'r') as fr:
                 hyper_params["base_station_position"] = literal_eval(fr.readline())
@@ -92,7 +93,7 @@ class RunSimulationProcess(multiprocessing.Process):
 
 def run_simulation(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_vehicles,
                    perception_probability=1, estimate_detection_error=False, use_saved_seed=False, save_gnss=False,
-                   noise_distance=0, repeat=False, cont_prob=False):
+                   noise_distance=0, repeat=False, cont_prob=False, avg_speed_sec=3600/40000):
     n_scenarios = 3
     s = time.time()
 
@@ -100,7 +101,7 @@ def run_simulation(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_
         print(f"Scenario: toronto_{i}")
         run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_RBs,
                                     tot_num_vehicles, i, perception_probability, estimate_detection_error,
-                                    use_saved_seed, save_gnss, noise_distance, repeat, cont_prob)
+                                    use_saved_seed, save_gnss, noise_distance, repeat, cont_prob, avg_speed_sec)
 
         if i != n_scenarios-1:
             print("#######################################################################################################")
@@ -111,12 +112,15 @@ def run_simulation(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_
 
 def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_vehicles,
                                 scenario_num, perception_probability, estimate_detection_error,
-                                use_saved_seed=False, save_gnss=False, noise_distance=0, repeat=False, cont_prob=False):
-    time_threshold = 10
+                                use_saved_seed=False, save_gnss=False, noise_distance=0, repeat=False, cont_prob=False,
+                                avg_speed_sec=3600/40000):
+    import pickle
+
+    time_threshold = 3
     n_threads = 12
     path = f"{base_dir}/toronto_{scenario_num}/"
     maps = os.listdir(path)
-    maps = [path + map for map in maps]
+    maps = [path + map for map in maps if os.path.isdir(path+map)]
     maps.sort(key=lambda x:int(x.split('/')[-1]))
 
     if not repeat:
@@ -136,9 +140,20 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
                                         + ("_egps" if noise_distance else "")
                                         + ("_cont_prob" if cont_prob else "_discont_prob")
                                         + ".txt")
+            state_path = os.path.join(os.path.dirname(scenario_path), "saved_state", "cv2x_non_buildings.pkl")
 
-            if not os.path.isfile(results_path):
+            if not os.path.isfile(results_path) and not os.path.isfile(state_path):
                 filtered_maps.append(traffic)
+            else:
+                b=False
+                try:
+                    with open(os.path.join(state_path), 'rb') as fw:
+                        cv2x_vehicles, non_cv2x_vehicles, buildings, scores_per_cv2x, los_statuses = pickle.load(fw)
+                except:
+                    b=True
+
+                if b:
+                    filtered_maps.append(traffic)
 
         maps = filtered_maps
 
@@ -164,42 +179,61 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
                                                  perception_probability=perception_probability,
                                                  estimate_detection_error=estimate_detection_error,
                                                  use_saved_seed=use_saved_seed, save_gnss=save_gnss,
-                                                 noise_distance=noise_distance, repeat=repeat, cont_prob=cont_prob)
+                                                 noise_distance=noise_distance, repeat=repeat, cont_prob=cont_prob,
+                                                 avg_speed_sec = avg_speed_sec)
         simulation_thread.start()
         list_threads.append(simulation_thread)
 
-    timeout = (len(maps) - (n - 1) * block_Size) * 7 * 60
+    timeout = (len(maps) - (n - 1) * block_Size) * 1 * 60
     print(f"Gonna wait {timeout} seconds for all threads")
     # timeout = block_Size * 1 * 60
     running_time = time.time()
+    use_timeout = False
 
     while True:
-        time_taken = time.time() - running_time
-        remaining_time = timeout - time_taken
+        if use_timeout:
+            time_taken = time.time() - running_time
+            remaining_time = timeout - time_taken
 
-        is_alive = False
+            is_alive = False
 
-        for i in range(n):
-            if list_threads[i].is_alive():
-                is_alive = True
+            print("Woke up!")
+
+            for i in range(n):
+                if list_threads[i].is_alive():
+                    is_alive = True
+                    print(f"Thread {i} is alive!")
+                else:
+                    list_threads[i].join(0)
+                    list_threads[i].terminate()
+                    print(f"Thread {i} finished!")
+                    # break
+
+            if not is_alive:
                 break
 
-        if not is_alive:
-            break
+            if remaining_time < 0:
+                print("Timeout! Killing remaining threads. . .")
+                for i in range(n):
+                    try:
+                        list_threads[i].join(1)
+                        list_threads[i].terminate()
+                        print(f"Thread {i} killed")
+                    except:
+                        print(f"error ending thread {i}")
 
-        if remaining_time < 0:
+                break
+
+            # print(f"Waiting threads, sleep {remaining_time} sec. . .")
+            print(f"Waiting threads, sleep 1 min. . .")
+            time.sleep(60)
+            time.sleep(remaining_time)
+        else:
             for i in range(n):
-                try:
-                    list_threads[i].join(1)
-                    list_threads[i].terminate()
-                except:
-                    print(f"error ending thread {i}")
-
+                list_threads[i].join()
+                list_threads[i].terminate()
+                print(f"Thread {i} finished!")
             break
-
-        print(f"Waiting threads, sleep 3 sec. . .")
-        time.sleep(3)
-
     cmd = 'pkill sumo'
     os.system(cmd)
     os.system(cmd)
@@ -207,39 +241,58 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
 
 class SIMULATION_TYPE(Enum):
     FIRST_PAPER=0,
-    SECOND_PAPER=1
+    SECOND_PAPER=1,
+    THIRD_PAPER=2,
 
 
 if __name__ == '__main__':
-    sim_type = SIMULATION_TYPE.SECOND_PAPER
+    sim_type = SIMULATION_TYPE.THIRD_PAPER
+    base_dir = "/media/bassel/Career/toronto_content_selection/toronto"
+    avg_speed_sec = 10
+    min_num_vehicles = 100
+    # base_dir = "/media/bassel/Career/toronto_content_selection/toronto_more_buses"
+    # avg_speed_sec = 10
+    # min_num_vehicles = 100
+    # base_dir = "/media/bassel/Career/toronto_content_selection/toronto_dense"
+    # avg_speed_sec = 10
+    # min_num_vehicles = 400
+
     # delete_all_results = True
     delete_all_results = False
+    # delete all results
+    if delete_all_results:
+        answer = input("Are you sure to delete ALL the results.txt and maps.png??")
+        if answer == 'y' or answer == 'yes':
+            n_scenarios = 3
 
-    if sim_type == SIMULATION_TYPE.SECOND_PAPER:
-        # delete all results
-        if delete_all_results:
-            answer = input("Are you sure to delete ALL the results.txt and maps.png??")
-            if answer == 'y':
-                n_scenarios = 10
+            for i in range(n_scenarios):
+                # path = f"/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto/toronto_{i}/"
+                path = os.path.join(base_dir, f"toronto_{i}/")
 
-                for i in range(n_scenarios):
-                    path = f"/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto/toronto_{i}/"
-                    # path = f"/media/bassel/E256341D5633F0C1/toronto_fov/toronto/toronto_{i}/"
-                    maps = os.listdir(path)
-                    maps = [path + map for map in maps]
-                    maps.sort(key=lambda x: int(x.split('/')[-1]))
-                    for p in maps:
-                        paths = glob.glob(p+"/result*.txt")
-                        for p2 in paths:
-                            os.remove(p2)
-                        paths = glob.glob(p+"/map*.png")
-                        for p2 in paths:
-                            os.remove(p2)
-                        paths = glob.glob(p+"/GNSS*.pkl")
-                        for p2 in paths:
-                            os.remove(p2)
+                maps = os.listdir(path)
+                maps = [path + map for map in maps]
+                maps.sort(key=lambda x: int(x.split('/')[-1]))
+                for p in maps:
+                    paths = glob.glob(p + "/result*.txt")
+                    for p2 in paths:
+                        os.remove(p2)
+                    paths = glob.glob(p + "/map*.png")
+                    for p2 in paths:
+                        os.remove(p2)
+                    paths = glob.glob(p + "/GNSS*.pkl")
+                    for p2 in paths:
+                        os.remove(p2)
 
-        start_time = time.time()
+    start_time = time.time()
+
+    if sim_type == SIMULATION_TYPE.THIRD_PAPER:
+        run_simulation(base_dir=base_dir,
+                       cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100, tot_num_vehicles=min_num_vehicles,
+                       perception_probability=1, estimate_detection_error=False, use_saved_seed=False,
+                       repeat=True, save_gnss=False, noise_distance=0, cont_prob=False,
+                       avg_speed_sec=avg_speed_sec)
+        print("*******************************************************************************************")
+    elif sim_type == SIMULATION_TYPE.SECOND_PAPER:
 
         ################################################   GPS   #######################################################
         # base_dir = '/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto'
@@ -260,10 +313,11 @@ if __name__ == '__main__':
 
         # #############################################    FOV     #####################################################
         for fov in [60, 90, 120, 240, 360]:
-            for prob in [False, True]:
+            for prob in [False]:
                 s = time.time()
                 print(f"Simulation fov: {fov}")
-                run_simulation(base_dir="/media/bassel/E256341D5633F0C1/toronto_fov/toronto",
+                # run_simulation(base_dir="/media/bassel/E256341D5633F0C1/toronto_fov/toronto",
+                run_simulation(base_dir="/home/bassel/toronto_fov/toronto",
                                cv2x_percentage=0.65, fov=fov, view_range=75, num_RBs=100, tot_num_vehicles=100,
                                perception_probability=1, estimate_detection_error=False, use_saved_seed=True,
                                save_gnss=False, noise_distance=0, cont_prob=prob)
@@ -279,8 +333,6 @@ if __name__ == '__main__':
         #                tot_num_vehicles=100, id=0, time_threshold=10, perception_probability=1, estimate_detection_error=False,
         #                                          use_saved_seed=True, save_gnss=True, noise_distance=0)
         # simulation_thread.run()
-
-        print("time taken:",time.time()-start_time)
     elif sim_type == SIMULATION_TYPE.FIRST_PAPER:
         ###################################################################################################################
         # Change CV2X percentage
@@ -395,5 +447,6 @@ if __name__ == '__main__':
         # e = time.time()
         # print(f"Done #1 cv2x_percentage=0.25, fov=120, view_range=75, num_RBs=75, tot_num_vehicles=100, total_time={e-s}")
 
+    print("time taken:",time.time()-start_time)
 
 print("All Simulations are done! Happy Integrating 9: )")
