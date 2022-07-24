@@ -27,10 +27,10 @@ class myThread (threading.Thread):
 
 
 # path = '/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto'
-path = '/media/bassel/Career/toronto_content_selection/toronto'
-# path = '/media/bassel/Career/toronto_content_selection/toronto_dense'
+# path = '/media/bassel/Career/toronto_content_selection/toronto'
+path = '/home/bassel/toronto_AVpercentage_RBs'
 # path = '/media/bassel/Career/toronto_content_selection/toronto_more_busses'
-maps = '/media/bassel/Entertainment/sumo_traffic/sumo_map/raw_toronto_map'
+maps = './data'
 
 if os.path.exists(path):
     shutil.rmtree(path, True)

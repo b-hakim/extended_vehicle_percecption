@@ -20,6 +20,12 @@ class Vehicle:
         self.fov = fov
         self.__previous_edge_road = traci.vehicle.getRoute(self.vehicle_id)[0]
         self.gps_pos_error = None
+        self._pos = None
+        self._center = None
+        self._speed = None
+        self._acc = None
+        self._orientation_ang_degree = None
+        self._heading_unit_vec = None
 
     def set_gps_error(self, noise_distance):
         if noise_distance == 0:
@@ -31,6 +37,7 @@ class Vehicle:
 
     def get_pos(self, with_gps_error=True):
         pos = list(traci.vehicle.getPosition(self.vehicle_id))
+        self._pos = pos
 
         if self.gps_pos_error is None or not with_gps_error:
             return pos
@@ -55,15 +62,20 @@ class Vehicle:
 
         ang = self.orientation_angle_degree - 90
         center = rotate_vector(center.transpose(), ang, np.array(self.get_pos())).transpose()
+        self._center = center[0]
         return center[0]
 
     @property
     def speed(self):
-        return traci.vehicle.getSpeed(self.vehicle_id)
+        speed = traci.vehicle.getSpeed(self.vehicle_id)
+        self._speed = speed
+        return speed
 
     @property
     def acceleration(self):
-        return traci.vehicle.getAcceleration(self.vehicle_id)
+        acc =  traci.vehicle.getAcceleration(self.vehicle_id)
+        self._acc = acc
+        return acc
 
     @property
     def orientation_angle_degree(self):
@@ -74,7 +86,7 @@ class Vehicle:
 
         # if vehicle_angle_degree < 0:
         #     vehicle_angle_degree += 360
-
+        self._orientation_ang_degree = vehicle_angle_degree
         return vehicle_angle_degree
 
     @property
@@ -82,6 +94,7 @@ class Vehicle:
         heading_unit_vector = [np.cos(self.orientation_angle_degree * np.pi / 180),
                                np.sin(self.orientation_angle_degree * np.pi / 180)]
         # heading_unit_vector = heading_unit_vector / np.sqrt(np.dot(heading_unit_vector, heading_unit_vector))
+        self._heading_unit_vec = np.array(heading_unit_vector)
         return np.array(heading_unit_vector)
 
     @staticmethod
