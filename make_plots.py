@@ -189,7 +189,7 @@ def save_plot(path, results_summary_dir, cv2x_percentage=0.35, fov=120, view_ran
     # plt.ylabel("Average sent")
     # plt.title(f"AV: {cv2x_percentage}% RBs: {num_RBs}")
     # # plt.show()
-    # plt.savefig(f"results_summary/avg_sent_{cv2x_percentage}_{num_RBs}.png")
+    # plt.savefig(f"results_summary/avg_sent_{cv2x_percentage}_{num_RBs}.png", dpi=1200)
     # plt.close()
     # plt.figure()
     # plt.plot(x, percentage_sent_seen_y)
@@ -197,28 +197,31 @@ def save_plot(path, results_summary_dir, cv2x_percentage=0.35, fov=120, view_ran
     # plt.ylabel("Average Added Information")
     # plt.title(f"AV: {cv2x_percentage}% RBs: {num_RBs}")
     # # plt.show()
-    # plt.savefig(f"results_summary/avg_new_info_{cv2x_percentage}_{num_RBs}.png")
+    # plt.savefig(f"results_summary/avg_new_info_{cv2x_percentage}_{num_RBs}.png", dpi=1200)
     plt.figure()
     plt.plot(x, visible_objects_y)
     plt.xlabel("Simulation number")
     plt.ylabel("visible_objects_y")
     plt.title(f"visible_objects_y")
     # plt.show()
-    plt.savefig(summary_name.replace("txt", "png").replace("/summary", "/visible_objects"))
+    plt.savefig(summary_name.replace("txt", "png").replace("/summary", "/visible_objects"), dpi=2000)
+    plt.savefig(summary_name.replace("txt", "eps").replace("/summary", "/visible_objects"), dpi=1200)
     plt.figure()
     plt.plot(x, perceived_sent_y)
     plt.xlabel("Simulation number")
     plt.ylabel("perceived_sent_y")
     plt.title(f"perceived_sent_y")
     # plt.show()
-    plt.savefig(summary_name.replace("txt", "png").replace("/summary", "/perceived_sent"))
+    plt.savefig(summary_name.replace("txt", "png").replace("/summary", "/perceived_sent"), dpi=2000)
+    plt.savefig(summary_name.replace("txt", "eps").replace("/summary", "/perceived_sent"), dpi=1200)
     plt.figure()
     plt.plot(x, visible_sent_y)
     plt.xlabel("Simulation number")
     plt.ylabel("visible_sent_y")
     plt.title(f"visible_sent_y")
     # plt.show()
-    plt.savefig(summary_name.replace("txt", "png").replace("/summary", "/visible_sent"))
+    plt.savefig(summary_name.replace("txt", "png").replace("/summary", "/visible_sent"), dpi=2000)
+    plt.savefig(summary_name.replace("txt", "eps").replace("/summary", "/visible_sent"), dpi=1200)
 
     print("***  " + str(cv2x_percentage) + " - " + str(num_RBs) + "  ***\n"
            "Total # Requests: " + str(np.round(avg_req / count, 2)),
@@ -292,7 +295,8 @@ def plot_summary_sent_percentage():
     plt.xlabel("Available number of RBs")
     plt.ylabel("Avg. Percentage Sent Messages")
     plt.legend(["25%", "35%", "45%", "55%", "65%"])
-    plt.savefig("results_summary/summary_sent_percentage.png")
+    plt.savefig("results_summary/summary_sent_percentage.png", format="png", dpi=2000)
+    plt.savefig("results_summary/summary_sent_percentage.eps", format="eps", dpi=1200)
 
 
 def plot_summary_sent_messages():
@@ -310,7 +314,8 @@ def plot_summary_sent_messages():
     plt.xlabel("Available number of RBs")
     plt.ylabel("Avg number Sent Messages")
     plt.legend(["25%", "35%", "45%", "55%", "65%"])
-    plt.savefig("results_summary/summary_sent_messages.png")
+    plt.savefig("results_summary/summary_sent_messages.png", format="png", dpi=2000)
+    plt.savefig("results_summary/summary_sent_messages.eps", format="eps", dpi=1200)
     plt.show()
 
 
@@ -345,7 +350,8 @@ def plot_summary_obj_function_performed():
     plt.xlabel("Available number of RBs")
     plt.ylabel("Percentage Executed Objective Value")
     plt.legend(["25%", "35%", "45%", "55%", "65%"])
-    plt.savefig("results_summary/summary_executed_objective_value_percentage.png")
+    plt.savefig("results_summary/summary_executed_objective_value_percentage.png", format="png", dpi=2000)
+    plt.savefig("results_summary/summary_executed_objective_value_percentage.eps", format="eps", dpi=1200)
     plt.show()
 
 
@@ -367,7 +373,8 @@ def plot_summary_avg_objective_value():
     plt.xlabel("Available number of RBs")
     plt.ylabel("Avg Objective Value")
     plt.legend(["25%", "35%", "45%", "55%", "65%"])
-    plt.savefig("results_summary/summary_objective_values.png")
+    plt.savefig("results_summary/summary_objective_values.png", format="png", dpi=2000)
+    plt.savefig("results_summary/summary_objective_values.png", format="eps", dpi=1200)
     plt.show()
 
 
@@ -386,7 +393,8 @@ def plot_summary_additional_perceived_information():
     plt.xlabel("Available number of RBs")
     plt.ylabel("Avg Sent-Perceived Percentage")
     plt.legend(["25%", "35%", "45%", "55%", "65%"])
-    plt.savefig("results_summary/summary_sent_perceived_percentage.png")
+    plt.savefig("results_summary/summary_sent_perceived_percentage.png", format="png", dpi=2000)
+    plt.savefig("results_summary/summary_sent_perceived_percentage.eps", format="eps", dpi=1200)
     plt.show()
 
 
@@ -405,28 +413,30 @@ def plot_summary_sent_percentage():
     plt.xlabel("Available number of RBs")
     plt.ylabel("Avg. Percentage Sent Messages")
     plt.legend(["25%", "35%", "45%", "55%", "65%"])
-    plt.savefig("results_summary/summary_sent_percentage.png")
+    plt.savefig("results_summary/summary_sent_percentage.png", format="png", dpi=2000)
+    plt.savefig("results_summary/summary_sent_percentage.eps", format="eps", dpi=1200)
 
 
 if __name__ == '__main__':
-    # for i in range(10):
-    #     for cv2x_percentage in [0.25, 0.35, 0.45, 0.55, 0.65]:
-    #         for rb in [20, 30, 40, 50, 60, 70, 80, 90, 100]:
-    #             verify_results_exists(f'/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto/toronto_{i}',
-    #                           cv2x_percentage=cv2x_percentage, fov=120, view_range=75,
-    #                                   num_RBs=rb, tot_num_vehicles=100)
+    base_dir = '/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto' if os.name != 'nt' else r"D:\sumo_traffic\sumo_map\toronto"
+    for i in range(10):
+        for cv2x_percentage in [0.25, 0.35, 0.45, 0.55, 0.65]:
+            for rb in [20, 30, 40, 50, 60, 70, 80, 90, 100]:
+                verify_results_exists(f'/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto/toronto_{i}',
+                              cv2x_percentage=cv2x_percentage, fov=120, view_range=75,
+                                      num_RBs=rb, tot_num_vehicles=100)
 
-    # for cv2x_percentage in [0.25, 0.35, 0.45, 0.55, 0.65]:
-    #     for rb in [20, 30, 40, 50, 60, 70, 80, 90, 100]:
-    #         save_plot('/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto' if os.name != 'nt' else r"D:\sumo_traffic\sumo_map\toronto",
-    #                   cv2x_percentage=cv2x_percentage, fov=120, view_range=75, num_RBs=rb,
-    #                   tot_num_vehicles=100, time_threshold=10)
+    for cv2x_percentage in [0.25, 0.35, 0.45, 0.55, 0.65]:
+        for rb in [20, 30, 40, 50, 60, 70, 80, 90, 100]:
+            save_plot(base_dir,
+                      cv2x_percentage=cv2x_percentage, fov=120, view_range=75, num_RBs=rb,
+                      tot_num_vehicles=100, time_threshold=10)
 
-    # plot_summary_sent_percentage()
-    # plot_summary_obj_function_performed()
-    # plot_summary_sent_messages()
-    # plot_summary_avg_objective_value()
-    # plot_summary_additional_perceived_information()
+    plot_summary_sent_percentage()
+    plot_summary_obj_function_performed()
+    plot_summary_sent_messages()
+    plot_summary_avg_objective_value()
+    plot_summary_additional_perceived_information()
     ###########################################    Detection    ########################################################
     # for perception_probability in [1, 0.9, 0.85]:
     #     for estimate_detection_error in [True, False]:
