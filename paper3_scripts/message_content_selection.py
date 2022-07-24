@@ -132,9 +132,9 @@ class MessageContentSelection():
                 else:
                     v2_dash = -1
 
-                    # while self.scores_per_cv2x[sender_av][0][1] <= v2_dash or v2_dash < 0:
-                    #     v2_dash = np.random.normal(loc=v2max_mean, scale=v2max_std)
-                    v2_dash = self.scores_per_cv2x[sender_av][1][1]
+                    while self.scores_per_cv2x[sender_av][0][1] <= v2_dash or v2_dash < 0:
+                        v2_dash = np.random.normal(loc=v2max_mean, scale=v2max_std)
+                    # v2_dash = self.scores_per_cv2x[sender_av][1][1]
 
                     if False: # occlusion
                         self.players_scores.append([self.scores_per_cv2x[sender_av][0], v2_dash])*0.5 # incorrect: need to multiply the score itself
@@ -149,9 +149,12 @@ class MessageContentSelection():
                 n += 1
                 shape = n * [2] + [n]
                 self.payoff = np.zeros(shape)
+                # s = time.time()
                 self.fill_payoff_matrix([])
                 g = GameTheory(self.payoff)
                 d = g.dominant_solutions()
+                # e = time.time()
+                # print("time: ", e-s)
                 is_dominant = False
 
                 if d[0] is not None:
@@ -184,17 +187,22 @@ class MessageContentSelection():
                         ms = g.mixed_strategy_solution()
                         used_gt_approach[sender_av] = "ms"
                         used_gt_approach["ms"] += 1
-                        ma = ms[0]
+                        # ma = ms[0]
                         for m in ms:
-                            if m != ma:
-                                print("ne")
+                            # if m != ma:
+                            #     print("ne")
                             if m<0 or m>1:
                                 if g.num_players < 4:
                                     print(self.basedir)
 
                         # assert ms[0] < 1
                         r = np.random.random()
-                        decision_object_to_send[sender_av] = self.player_sends_obj(sender_av, 0 if r < ms[0] else 1)
+                        # scores.append((receiver_av_id, v, perceived_nav, p))
+                        p1 = np.array(self.cv2x_vehicles[sender_av]._pos)
+                        p2 = np.array(self.scores_per_cv2x[sender_av][0][2]._pos)
+                        # dist = np.sqrt(np.dot((p1-p2), (p1-p2)))
+                        dist = np.linalg.norm(p1-p2)
+                        decision_object_to_send[sender_av] = self.player_sends_obj(sender_av, 0 if r < ms[0] * 1-dist/75 else 1)
 
         # for sender, decision in decision_object_to_send.items():
         #     print(f"Sender ID: {sender}, Receiver1 ID: {decision[0][0]}, Object ID: {decision[0][2]}, Score: {np.round(decision[0][1], 2)},"
@@ -264,13 +272,13 @@ class MessageContentSelection():
     def test_payoff(self):
         #region Game 1
 
-        self.players_scores = [[[None, 55, None], [None, 50, None]],
-                               [[None, 55, None], [None, 50, None]]]
+        self.players_scores = [[[None, 10, None], [None, 8, None]],
+                               [[None, 10, None], [None, 7, None]]]
         self.payoff = np.zeros((2, 2, 2))
         self.fill_payoff_matrix([])
 
         g = GameTheory(self.payoff)
-        # print(g.payoff)
+        print(g.payoff)
         # print("Dominant Solution:")
         #
         # d = g.dominant_solutions()
@@ -286,11 +294,11 @@ class MessageContentSelection():
         #endregion
 
         #region Game 2
-        # self.payoff = np.array([[[[7, 7, 7], [11, 11, 14]], [[11, 10, 11], [22, 10, 14]]],
-        #                         [[[22, 11, 11], [22, 22, 14]], [[22, 10, 22], [14, 2, 7]]]])
-        #
-        # g = GameTheory(self.payoff)
-        # print(g.payoff)
+        self.payoff = np.array([[[[7, 7, 7], [11, 11, 14]], [[11, 10, 11], [22, 10, 14]]],
+                                [[[22, 11, 11], [22, 22, 14]], [[22, 10, 22], [14, 2, 7]]]])
+
+        g = GameTheory(self.payoff)
+        print(g.payoff)
         # print("Dominant Solution:")
         #
         # d = g.dominant_solutions()
@@ -360,54 +368,6 @@ class MessageContentSelection():
         # for player in range(len(actions), num_players):
         for action in range(2):
             self.fill_payoff_matrix(actions+[action])
-
-    def fill_payoff_matrix_new(self, actions):
-        num_players = self.payoff.shape[-1]
-
-        if len(actions) == num_players:
-            scores = []
-
-            # count number of senders
-            num_senders = 0
-
-            for action in actions:
-                if action == 0: # action is to send
-                    num_senders += 1
-
-            # if no player sends --> use s2 for all players and - s/n
-            if num_senders == 0:
-                for player_idx, action in enumerate(actions):
-                    scores.append(self.players_scores[player_idx][1][1] - self.players_scores[player_idx][0][1]/num_players)
-
-            # if all players send --> divide the score among them
-            elif num_senders == num_players:
-                for player_idx, action in enumerate(actions):
-                    scores.append(self.players_scores[player_idx][action][1]/num_players)
-
-            # if one player sends all do not send, take s for that player but s2 for others
-            elif num_senders == 1:
-                for player_idx, action in enumerate(actions):
-                    scores.append(self.players_scores[player_idx][action][1])
-
-            # if more than one player sends (but not all) then those who send are punished
-            elif num_senders > 1:
-                for player_idx, action in enumerate(actions):
-                    if action == 0:
-                        scores.append(self.players_scores[player_idx][action][1]/num_senders)
-                    else:
-                        scores.append(self.players_scores[player_idx][action][1])
-
-            obj = self.payoff
-
-            for a in actions:
-                obj = obj[a]
-
-            obj[:] = scores
-
-            return
-        # for player in range(len(actions), num_players):
-        for action in range(2):
-            self.fill_payoff_matrix_new(actions+[action])
 
 
 class MCSThread(multiprocessing.Process):
@@ -480,22 +440,22 @@ def run_simulation(path):
 
 
 if __name__ == '__main__':
-    print('/media/bassel/Career/toronto_content_selection/toronto')
-    run_simulation('/media/bassel/Career/toronto_content_selection/toronto')
-
-    print("\n***********************************************************************\n")
-
+    # print('/media/bassel/Career/toronto_content_selection/toronto')
+    # run_simulation('/media/bassel/Career/toronto_content_selection/toronto')
+    #
+    # print("\n***********************************************************************\n")
+    #
     # print('/media/bassel/Career/toronto_content_selection/toronto_more_buses')
     # run_simulation('/media/bassel/Career/toronto_content_selection/toronto_more_buses')
-
-    print("\n***********************************************************************\n")
-
-    # print('/media/bassel/Career/toronto_content_selection/toronto_dense')
-    # run_simulation('/media/bassel/Career/toronto_content_selection/toronto_dense')
-    # run_simulation('/media/bassel/Career/toronto_content_selection/toronto_dense (speed 40)')
+    #
+    # print("\n***********************************************************************\n")
+    #
+    print('/media/bassel/Career/toronto_content_selection/toronto_dense')
+    run_simulation('/media/bassel/Career/toronto_content_selection/toronto_dense')
 
     # run_simulation('/media/bassel/Career/toronto_content_selection/toronto_dense')
     # s = time.time()
     # msg = MessageContentSelection('/media/bassel/Career/toronto_content_selection/toronto/toronto_1/3')
     # msg.run()
+    # msg.test_payoff()
     # print("time taken:", time.time()-s)

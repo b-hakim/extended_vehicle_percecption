@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.optimize import fsolve
 
+from paper3_scripts import solver
+
 
 class GameTheory:
     def __init__(self, payoff_matrix:np.ndarray):
@@ -199,14 +201,17 @@ class GameTheory:
         return sum
 
     def mixed_strategy_solution(self):
-        def equations(propabilities):
-            pos = self.get_half_mixed_strategy_sol(0, propabilities[0])
-            neg = self.get_half_mixed_strategy_sol(1, propabilities[0])
-            return pos - neg
+        s = solver.Solver(self.num_players, self.payoff, 0)
+        return s.find_probabilities()
 
-        propabilities_values = fsolve(equations, (1,))
+        # def equations(propabilities):
+        #     pos = self.get_half_mixed_strategy_sol(0, propabilities[0])
+        #     neg = self.get_half_mixed_strategy_sol(1, propabilities[0])
+        #     return pos - neg
+        #
+        # propabilities_values = fsolve(equations, (1,))
 
-        return propabilities_values
+        # return propabilities_values
 
     def get_half_mixed_strategy_sol(self, starting_action, prob):
         all_scores = np.array(self.get_all_scores([starting_action])).reshape((-1, self.num_players)).tolist()
