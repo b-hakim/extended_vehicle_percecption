@@ -120,7 +120,7 @@ class Solver:
                     s+= str(np.round(self.s_n[n][1], 2)) + "*" + str(abs(alpha_n[n].solution_value()))
                     if alpha_n[n].solution_value() == 1:
                         # sender, receiver, score, non_cv2x_pos
-                        selected_messages_requests.append((self.s_n[n][0], [n, self.s_n[n][1], self.s_n[n][2].get_pos()]))
+                        selected_messages_requests.append((self.s_n[n][0], [n, self.s_n[n][1], self.s_n[n][2]._pos]))
 
                 fw.write('alpha: \n' + s + "\n\n")
 
@@ -147,7 +147,7 @@ class Solver:
 
         sent = np.count_nonzero([alpha_n[n].solution_value() for n in alpha_n.keys()])
         not_sent = len(list(alpha_n.keys())) - sent
-
+        # print("Actual optimization Time:", end-start)
         return sent, not_sent, selected_messages_requests
 
 if __name__ == '__main__':

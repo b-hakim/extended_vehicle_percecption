@@ -2,6 +2,7 @@ from typing import List
 
 import cv2
 import numpy as np
+from PIL import Image
 
 from vehicle_info import Vehicle
 
@@ -49,7 +50,7 @@ class SumoVisualizer:
 
         xmax, ymax = polys[:, 0].max(), polys[:, 1].max()
         # self.padding = 100
-        self.scale = 1
+        self.scale = 10
         self.img = np.ones((self.scale*(int(ymax+1)), self.scale*(int(xmax+1)), 3), dtype=np.uint8) * 255
         buildings.sort(key=lambda x:x.layer)
 
@@ -119,7 +120,11 @@ class SumoVisualizer:
         cv2.ellipse(self.img, center, axes, ang, startAngle, endAngle, (0,0,0))
 
     def save_img(self, img_path="./map.png"):
-        cv2.imwrite(img_path, self.img)
+        RGBimage = cv2.cvtColor(self.img, cv2.COLOR_BGR2RGB)
+        PILimage = Image.fromarray(RGBimage)
+        PILimage.save(img_path, dpi=(2000, 2000))
+
+        # cv2.imwrite(img_path, self.img)
 
     def draw_vehicle_body(self, vehicle, color=(128, 128, 127)):
         poly = vehicle.get_vehicle_boundaries(with_gps_error=DRAW_WITH_GPS_ERROR)

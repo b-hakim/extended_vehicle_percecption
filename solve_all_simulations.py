@@ -6,7 +6,7 @@ import threading
 import time
 from ast import literal_eval
 from enum import Enum
-from traCI import Simulation
+from solve_traci import Simulation
 
 
 class RunSimulationProcess(multiprocessing.Process):
@@ -50,8 +50,8 @@ class RunSimulationProcess(multiprocessing.Process):
             hyper_params["fov"] = self.fov
             hyper_params["view_range"] = self.view_range
             hyper_params["num_RBs"] = self.num_RBs
-            # hyper_params['message_size'] = 2000 * 8 # should be 490
-            hyper_params['message_size'] = 490 # should be 490
+            hyper_params['message_size'] = 2000 * 8 # should be 490
+            # hyper_params['message_size'] = 490
             hyper_params['tot_num_vehicles'] = self.tot_num_vehicles
             hyper_params['time_threshold'] = self.time_threshold
             hyper_params['save_visual'] = True
@@ -85,7 +85,7 @@ class RunSimulationProcess(multiprocessing.Process):
             print(f"Scenario: {traffic[traffic.index('toronto_'):]} started")
 
             sim = Simulation(hyper_params, str(self.sim_id)+"_"+os.path.basename(traffic))
-            sim.run(self.use_saved_seed)
+            sim.run()
 
             print(f"Scenario {traffic[traffic.index('toronto_'):]} ended with {time.time()-sc_time_start} seconds")
 
@@ -115,8 +115,6 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
                                 scenario_num, perception_probability, estimate_detection_error,
                                 use_saved_seed=False, save_gnss=False, noise_distance=0, repeat=False, cont_prob=False,
                                 avg_speed_sec=3600/40000):
-    import pickle
-
     time_threshold = 3
     n_threads = 12
     path = f"{base_dir}/toronto_{scenario_num}/"
@@ -128,37 +126,22 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
         filtered_maps = []
         for traffic in maps:
             scenario_path = os.path.join(traffic, "test.net.xml")
+            results_path = os.path.join(os.path.dirname(scenario_path),
+                                        "results_" + str(cv2x_percentage)
+                                        + "_" + str(fov)
+                                        + "_" + str(view_range)
+                                        + "_" + str(num_RBs)
+                                        + "_" + str(tot_num_vehicles)
+                                        + "_" + str(time_threshold)
+                                        + "_" + str(perception_probability)
+                                        + ("_ede" if estimate_detection_error else "_nede")
+                                        + "_" + str(noise_distance)
+                                        + ("_egps" if noise_distance else "")
+                                        + ("_cont_prob" if cont_prob else "_discont_prob")
+                                        + ".txt")
 
-            state_path = os.path.join(os.path.dirname(scenario_path), "saved_state",
-                                      "state_" + str(cv2x_percentage)
-                                      + "_" + str(fov)
-                                      + "_" + str(view_range)
-                                      + "_" + str(num_RBs)
-                                      + "_" + str(tot_num_vehicles)
-                                      + "_" + str(time_threshold)
-                                      + "_" + str(perception_probability)
-                                      + ("_ede" if estimate_detection_error else "_nede")
-                                      + "_" + str(noise_distance)
-                                      + ("_egps" if noise_distance != 0 else "")
-                                      + ("_cont_prob" if cont_prob else "_discont_prob")
-                                      + ".pkl")
-
-
-            if not os.path.isfile(state_path): # and not os.path.isfile(state_path):
+            if not os.path.isfile(results_path):
                 filtered_maps.append(traffic)
-            else:
-                b=False
-                try:
-                    with open(os.path.join(state_path), 'rb') as fw:
-                        data = pickle.load(fw)
-                        cv2x_vehicles, non_cv2x_vehicles, buildings, cv2x_perceived_non_cv2x_vehicles,\
-                        scores_per_cv2x, los_statuses, vehicles, cv2x_perceived_non_cv2x_vehicles,\
-                        cv2x_vehicles_perception_visible, tot_perceived_objects, tot_visible_objects = data
-                except:
-                    b=True
-
-                if b:
-                    filtered_maps.append(traffic)
 
         maps = filtered_maps
 
@@ -173,7 +156,7 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
 
     for i in range(n_threads):
         start = i * block_size
-        end = start + block_size
+        end = start + block_size + 1
 
         if i == n-1:
             end = len(maps)
@@ -191,20 +174,15 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
         simulation_thread.start()
         list_threads.append(simulation_thread)
 
-    max_block_size = (len(maps) - block_size*(len(list_threads)-1)) # length of the last block
-    max_block_size = max(block_size, max_block_size)
-    timeout = 5 * 60 * max_block_size
-    if timeout < 60:
-        print("timeout was", timeout)
-        timeout = 60
-
+    timeout = 0.01 * 60 * (len(maps) - block_size*(len(list_threads)-1)) # length of the last block
     print(f"Gonna wait {timeout} seconds for all threads")
-    start_time = time.time()
-    use_timeout = True
+    running_time = time.time()
+    # use_timeout = True
+    use_timeout = False
 
     while True:
         if use_timeout:
-            time_taken = time.time() - start_time
+            time_taken = time.time() - running_time
             remaining_time = timeout - time_taken
 
             is_alive = False
@@ -239,7 +217,7 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
             # print(f"Waiting threads, sleep {remaining_time} sec. . .")
             print(f"Waiting threads, sleep 1 min. . .")
             time.sleep(60)
-            # time.sleep(remaining_time)
+            time.sleep(remaining_time)
         else:
             for i in range(n):
                 list_threads[i].join()
@@ -269,8 +247,8 @@ if __name__ == '__main__':
     # avg_speed_sec = 10
     # min_num_vehicles = 400
 
-    delete_all_results = True
-    # delete_all_results = False
+    # delete_all_results = True
+    delete_all_results = False
     # delete all results
     if delete_all_results:
         answer = input("Are you sure to delete ALL the results.txt and maps.png??")
@@ -285,16 +263,16 @@ if __name__ == '__main__':
                 maps = [path + map for map in maps]
                 maps.sort(key=lambda x: int(x.split('/')[-1]))
                 for p in maps:
-                    # paths = glob.glob(p + "/result*.txt")
-                    # for p2 in paths:
-                    #     os.remove(p2)
+                    paths = glob.glob(p + "/result*.txt")
+                    for p2 in paths:
+                        os.remove(p2)
                     paths = glob.glob(p + "/map*.png")
                     for p2 in paths:
                         os.remove(p2)
-                    # paths = glob.glob(p + "/GNSS*.pkl")
-                    # for p2 in paths:
-                    #     os.remove(p2)
-    exit(0)
+                    paths = glob.glob(p + "/GNSS*.pkl")
+                    for p2 in paths:
+                        os.remove(p2)
+    # exit(0)
     start_time = time.time()
 
     if sim_type == SIMULATION_TYPE.THIRD_PAPER:
@@ -354,7 +332,7 @@ if __name__ == '__main__':
                 print("")
                 run_simulation(base_dir=base_dir, cv2x_percentage=cv2_percentage, fov=120, view_range=75,
                                num_RBs=num_RBs, tot_num_vehicles=min_num_vehicles,
-                               avg_speed_sec=avg_speed_sec, repeat=False)
+                               avg_speed_sec=avg_speed_sec, repeat=True)
         ###################################################################################################################
         # s = time.time()
         # run_simulation_one_scenario(cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=90, tot_num_vehicles=100,
