@@ -1,4 +1,4 @@
-# extended_vehicle_percecption
+# Extended Vehicle Percecption
 Steps for testing:
 1. Run traCi.py
 2. Check results_*.txt file for the results
