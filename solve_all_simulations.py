@@ -238,6 +238,8 @@ class SIMULATION_TYPE(Enum):
 if __name__ == '__main__':
     sim_type = SIMULATION_TYPE.FIRST_PAPER
     base_dir = "/home/bassel/toronto_AVpercentage_RBs"
+    # sim_type = SIMULATION_TYPE.THIRD_PAPER
+    # base_dir = "/media/bassel/Career/toronto_content_selection/toronto_dense (paper)/"
     avg_speed_sec = 10
     min_num_vehicles = 100
     # base_dir = "/media/bassel/Career/toronto_content_selection/toronto_more_buses"
