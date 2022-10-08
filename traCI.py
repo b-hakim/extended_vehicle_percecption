@@ -119,9 +119,9 @@ class Simulation:
         if min_dist_edge is None:
             return 0
 
-        t = (min_dist+0.0000001)/self.hyper_params["avg_speed_sec"] # get time in seconds for a speed of 40km/h
+        t = (min_dist+0.0000001)/self.hyper_params["avg_speed_meter_per_sec"] # get time in seconds for a speed of 40km/h
 
-        if t > time_threshold:
+        if t > time_threshold or t < 1:
             return 0
         else:
             return p/t
@@ -354,7 +354,7 @@ class Simulation:
 
         return h_n
 
-    def run(self, use_seed=False):
+    def run(self, use_seed=True):
         sumoBinary = "/usr/bin/sumo"
         # sumoBinary = "/usr/bin/sumo-gui"
         sumoCmd = [sumoBinary, "-c", self.hyper_params['scenario_map'], '--no-warnings', '--quit-on-end']
@@ -528,190 +528,6 @@ class Simulation:
 
             break
 
-            # Count number of perceived
-            perceived_but_considered_to_send = 0
-            not_perceived_but_visible_considered_to_send = 0
-
-            for sender_cv2x_id, scores in scores_per_cv2x.items():
-                for (receiver_id, score, perceived_non_cv2x_vehicle) in scores:
-                    perceived = False
-                    if score != 0:
-                        if receiver_id in cv2x_perceived_non_cv2x_vehicles:
-                            # Sender does not believed the receiver sees the object cause of the score
-                            # However, it is seen by the receiver
-                            perceived_non_cv2x_vehicles = cv2x_perceived_non_cv2x_vehicles[receiver_id]
-
-                            if perceived_non_cv2x_vehicle.vehicle_id in perceived_non_cv2x_vehicles:
-                                perceived_but_considered_to_send += 1
-                                perceived = True
-
-                        if receiver_id in cv2x_vehicles_perception_visible and not perceived:
-                            visible_non_cv2x_vehicles = cv2x_vehicles_perception_visible[receiver_id]
-
-                            if perceived_non_cv2x_vehicle.vehicle_id in visible_non_cv2x_vehicles:
-                                # Sender does not believed the receiver sees the objectit
-                                # It is not perceived by the receiver
-                                # However, it is visible to the receiver --> due to detection or gps error!
-                                not_perceived_but_visible_considered_to_send += 1
-
-            # 3.2) Get Highest Score for each cv2x vehicle
-            score_per_cv2x = {cv2x: max(scores, key=lambda x: x[1]) for cv2x, scores in scores_per_cv2x.items()}
-
-            perceived_but_sent_to_BS = 0
-            not_perceived_but_visible_sent_to_BS = 0
-
-            for sender_cv2x_id, scores in score_per_cv2x.items():
-                (receiver_id, score, perceived_non_cv2x_vehicle) = scores
-                perceived = False
-
-                if score != 0:
-                    if receiver_id in cv2x_perceived_non_cv2x_vehicles:
-                        # Sender does not believed the receiver sees the object cause of the score
-                        # However, it is seen by the receiver
-                        perceived_non_cv2x_vehicles = cv2x_perceived_non_cv2x_vehicles[receiver_id]
-
-                        if perceived_non_cv2x_vehicle.vehicle_id in perceived_non_cv2x_vehicles:
-                            perceived_but_sent_to_BS += 1
-                            perceived = True
-
-                    if receiver_id in cv2x_vehicles_perception_visible and not perceived:
-                        visible_non_cv2x_vehicles = cv2x_vehicles_perception_visible[receiver_id]
-
-                        if perceived_non_cv2x_vehicle.vehicle_id in visible_non_cv2x_vehicles:
-                            # Sender does not believed the receiver sees the objectit
-                            # It is not perceived by the receiver
-                            # However, it is visible to the receiver --> due to detection or gps error!
-                            not_perceived_but_visible_sent_to_BS += 1
-
-            # 3.3) Prevent Vehicles from sending with score = 0
-            score_per_cv2x = {cv2x:score_receiver for cv2x, score_receiver in score_per_cv2x.items() if score_receiver[1] != 0}
-
-            total_requests_duplicated = len(score_per_cv2x)
-
-            # 3.4) Make unique
-            score_per_cv2x = self.make_unique_requests(score_per_cv2x)
-
-            h_n_k = self.get_channel_gain_vehicle(self.hyper_params["base_station_position"],
-                                                  [vehicle for vehicle in vehicles.values() if
-                                                   vehicle.vehicle_id in score_per_cv2x],
-                                                  self.hyper_params['num_RBs'])
-
-            # 3.3) Baseline to solve the problem and select which requests to send
-            solver = Solver(score_per_cv2x, h_n_k,
-                            self.hyper_params['num_RBs'], self.hyper_params['message_size'])
-
-            save_path = os.path.join(os.path.dirname(self.hyper_params['scenario_path']),
-                                     "results_" + str(self.hyper_params['cv2x_N'])
-                                     + "_" + str(self.hyper_params['fov'])
-                                     + "_" + str(self.hyper_params["view_range"])
-                                     + "_" + str(self.hyper_params["num_RBs"])
-                                     + "_" + str(self.hyper_params["tot_num_vehicles"])
-                                     + "_" + str(self.hyper_params['time_threshold'])
-                                     + "_" + str(self.hyper_params['perception_probability'])
-                                     + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
-                                     + "_" + str(self.hyper_params["noise_distance"])
-                                     + ("_egps" if self.hyper_params["noise_distance"] != 0 else "")
-                                     + ("_cont_prob" if self.hyper_params["continous_probability"] else "_discont_prob")
-                                     +".txt")
-
-            sent, unsent, selected_messages_requests = solver.find_optimal_assignment(save_path)
-            # selected_messages_requests >> [sender, receiver, score, non_cv2x_pos]
-
-            if self.hyper_params["save_gnss"]:
-                # Save location of objects and their IDs in a file
-                # Save the sender and receiver and objects in another file
-                with open(save_path.replace('results', 'GNSS').replace(".txt",'.pkl'), 'wb') as fw:
-                    pickle.dump(({v:vehicles[v].get_pos() for v in vehicles.keys()}, selected_messages_requests), fw)
-
-            perceived_but_sent_by_BS = 0
-            not_perceived_but_visible_sent_by_BS = 0
-
-            for (msg_sender_id, [msg_receiver_id, m_s, msg_obj_pos]) in selected_messages_requests:
-                msg_found = False
-
-                for sender_cv2x_id, scores in scores_per_cv2x.items():
-                    if sender_cv2x_id != msg_sender_id:
-                        continue
-
-                    for (receiver_id, score, perceived_non_cv2x_vehicle) in scores:
-                        pos = perceived_non_cv2x_vehicle.get_pos()
-                        if receiver_id != msg_receiver_id or \
-                                (pos[0] - msg_obj_pos[0] > 0.0001 and pos[1] - msg_obj_pos[1] > 0.0001):
-                            continue
-
-                        perceived = False
-
-                        if receiver_id in cv2x_perceived_non_cv2x_vehicles:
-                            # Sender does not believed the receiver sees the object cause of the score
-                            # However, it is seen by the receiver
-                            perceived_non_cv2x_vehicles = cv2x_perceived_non_cv2x_vehicles[receiver_id]
-
-                            if perceived_non_cv2x_vehicle.vehicle_id in perceived_non_cv2x_vehicles:
-                                perceived_but_sent_by_BS += 1
-                                perceived = True
-
-                        if receiver_id in cv2x_vehicles_perception_visible and not perceived:
-
-                            visible_non_cv2x_vehicles = cv2x_vehicles_perception_visible[receiver_id]
-
-                            if perceived_non_cv2x_vehicle.vehicle_id in visible_non_cv2x_vehicles:
-                                # Sender does not believed the receiver sees the objectit
-                                # It is not perceived by the receiver
-                                # However, it is visible to the receiver --> due to detection or gps error!
-                                not_perceived_but_visible_sent_by_BS += 1
-
-                        msg_found = True
-                        break
-
-                    if msg_found:
-                        break
-
-            with open(save_path, 'a') as fw:
-                fw.write("GNSS Errors:\n")
-
-                for msg in selected_messages_requests:
-                    sender_id, (receiver_id, score, obj_pos) = msg
-                    #To do:
-                    # for each msg,
-                    # 1- Calculate the relative position of the object ==> rel_obj_pos and add noise for depth error
-                    # 2- Change the position of the sender based on error ==> sender_noisy_pos
-                    # 3- Calculate the new position of the object ==> abs_obj_noisy_pos
-                    # 4- Calculate the error between rel_obj_po and rel_obj_noisy_pos
-                    # 5- Add noise for detection error
-                    sender_pos = np.array(vehicles[sender_id].get_pos())
-                    sender_noisy_pos = move_point(sender_pos, random.randint(0, 360), self.hyper_params["noise_distance"])
-                    abs_obj_noisy_pos = get_new_abs_pos(sender_pos, sender_noisy_pos, obj_pos)
-
-                    error = np.linalg.norm([np.array(abs_obj_noisy_pos) - np.array(obj_pos)])
-                    fw.write(f"{sender_id}, {receiver_id}, {score}, {obj_pos}, {error}\n")
-
-                fw.write("\n")
-
-            with open(save_path, 'a') as fw:
-                fw.write("AVs: " + str(len(cv2x_vehicles))
-                         + "\nNon-AVs: " + str(len(non_cv2x_vehicles))
-                         + "\nTotal Duplicate Requests: " + str(total_requests_duplicated)
-                         + "\nTotal Unique Requests: " + str(sent+unsent)
-                         + "\nSent: " + str(sent)
-                         + "\nUnsent: " + str(unsent)
-                         + "\nPerceived Vehicles: " + str(tot_perceived_objects)
-                         + "\nVisible Vehicles: " + str(tot_visible_objects)
-                         + "\nPerceived But considered sending to BS: " + str(perceived_but_considered_to_send)
-                         + "\nPerceived But Sent to BS: " + str(perceived_but_sent_to_BS)
-                         + "\nPerceived But Sent by BS: " + str(perceived_but_sent_by_BS)
-                         + "\nNot Perceived but visible and considered sending to BS: " + str(not_perceived_but_visible_considered_to_send)
-                         + "\nNot Perceived but visible and Sent to BS: " + str(not_perceived_but_visible_sent_to_BS)
-                         + "\nNot Perceived but visible and Sent by BS: " + str(not_perceived_but_visible_sent_by_BS)
-                         + "\nCorrect LoS: " + str(los_statuses[0])
-                         + "\nCorrect Nlos: " + str(los_statuses[1])
-                         + "\nIncorrect Los: " + str(los_statuses[2])
-                         + "\nIncorrect NLoS: " + str(los_statuses[3])
-                         + "\nUnsure LoS: " + str(los_statuses[4])
-                         + "\nUnsure NLoS: " + str(los_statuses[5])
-                         )
-            # [correct_los, correct_nlos, incorrect_los, incorrect_nlos, unsure_los, unsure_nlos]
-            break
-
         # if self.hyper_params["save_visual"]:
         #     viz.save_img()
 
@@ -728,6 +544,8 @@ if __name__ == '__main__':
     # hyper_params['scenario_polys'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test/map.poly.xml"
     basedir = '/media/bassel/Career/toronto_content_selection/toronto_dense/toronto_2/5/'
     basedir = '/home/bassel/toronto_AVpercentage_RBs/toronto_7/1/'
+    basedir = '/media/bassel/Career/toronto_content_selection/toronto_dense/toronto_0/0/'
+
     # basedir = '/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto/toronto_1/1/'
     # basedir = '/media/bassel/Career/toronto_content_selection/toronto_dense/toronto_1/0/'
     hyper_params['scenario_path'] = os.path.join(basedir, "test.net.xml")
@@ -748,9 +566,9 @@ if __name__ == '__main__':
     hyper_params['estimate_detection_error'] = False
     hyper_params['save_gnss'] = False
     hyper_params['continous_probability'] = False
-    hyper_params["avg_speed_sec"] = 10
+    hyper_params["avg_speed_meter_per_sec"] = 10
 
     # while True:
     sim = Simulation(hyper_params, "1_0")
-    sim.run(False)
+    sim.run(True)
 
