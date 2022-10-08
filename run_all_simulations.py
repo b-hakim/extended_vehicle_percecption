@@ -12,7 +12,7 @@ from traCI import Simulation
 class RunSimulationProcess(multiprocessing.Process):
     def __init__(self, map, cv2x_percentage, fov, view_range, num_RBs, tot_num_vehicles, id, time_threshold,
                  perception_probability=1.0, estimate_detection_error=False, use_saved_seed=False, save_gnss=False,
-                 noise_distance=0, repeat=False, cont_prob=False, avg_speed_sec=3600/40000):
+                 noise_distance=0, repeat=False, cont_prob=False, avg_speed_meter_per_sec=40000 / 3600):
         # multiprocessing.Process.__init__(self)
         super(RunSimulationProcess, self).__init__()
 
@@ -25,7 +25,7 @@ class RunSimulationProcess(multiprocessing.Process):
 
         self.cv2x_percentage, self.fov, self.view_range, \
         self.num_RBs, self.tot_num_vehicles, self.perception_probability = cv2x_percentage, fov, view_range, num_RBs,\
-                                                                          tot_num_vehicles, perception_probability
+                                                                           tot_num_vehicles, perception_probability
         self.use_saved_seed = use_saved_seed
         self.sim_id = id
         self.time_threshold = time_threshold
@@ -34,7 +34,7 @@ class RunSimulationProcess(multiprocessing.Process):
         self.noise_distance = noise_distance
         self.repeat = repeat
         self.cont_prob = cont_prob
-        self.avg_speed_sec = avg_speed_sec
+        self.avg_speed_meter_per_sec = avg_speed_meter_per_sec
 
     def run(self):
         print(f"Simulation Thread {str(self.sim_id)} started with a batchsize={len(self.traffics)} ")
@@ -60,7 +60,7 @@ class RunSimulationProcess(multiprocessing.Process):
             hyper_params["save_gnss"] = self.save_gnss
             hyper_params["noise_distance"] = self.noise_distance
             hyper_params["continous_probability"] = self.cont_prob
-            hyper_params["avg_speed_sec"] = self.avg_speed_sec
+            hyper_params["avg_speed_meter_per_sec"] = self.avg_speed_meter_per_sec
 
             with open(os.path.join(traffic,"basestation_pos.txt"), 'r') as fr:
                 hyper_params["base_station_position"] = literal_eval(fr.readline())
@@ -94,7 +94,7 @@ class RunSimulationProcess(multiprocessing.Process):
 
 def run_simulation(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_vehicles,
                    perception_probability=1, estimate_detection_error=False, use_saved_seed=False, save_gnss=False,
-                   noise_distance=0, repeat=False, cont_prob=False, avg_speed_sec=3600/40000):
+                   noise_distance=0, repeat=False, cont_prob=False, avg_speed_meter_per_sec=40000/3600):
     n_scenarios = 10
     s = time.time()
 
@@ -102,7 +102,7 @@ def run_simulation(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_
         print(f"Scenario: toronto_{i}")
         run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_RBs,
                                     tot_num_vehicles, i, perception_probability, estimate_detection_error,
-                                    use_saved_seed, save_gnss, noise_distance, repeat, cont_prob, avg_speed_sec)
+                                    use_saved_seed, save_gnss, noise_distance, repeat, cont_prob, avg_speed_meter_per_sec)
 
         if i != n_scenarios-1:
             print("#######################################################################################################")
@@ -114,7 +114,7 @@ def run_simulation(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_
 def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_vehicles,
                                 scenario_num, perception_probability, estimate_detection_error,
                                 use_saved_seed=False, save_gnss=False, noise_distance=0, repeat=False, cont_prob=False,
-                                avg_speed_sec=3600/40000):
+                                avg_speed_meter_per_sec=40000 / 3600):
     import pickle
 
     time_threshold = 3
@@ -186,7 +186,7 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
                                                  estimate_detection_error=estimate_detection_error,
                                                  use_saved_seed=use_saved_seed, save_gnss=save_gnss,
                                                  noise_distance=noise_distance, repeat=repeat, cont_prob=cont_prob,
-                                                 avg_speed_sec = avg_speed_sec)
+                                                 avg_speed_meter_per_sec= avg_speed_meter_per_sec)
 
         simulation_thread.start()
         list_threads.append(simulation_thread)
@@ -258,19 +258,19 @@ class SIMULATION_TYPE(Enum):
 
 
 if __name__ == '__main__':
-    sim_type = SIMULATION_TYPE.FIRST_PAPER
+    sim_type = SIMULATION_TYPE.THIRD_PAPER
     base_dir = "/home/bassel/toronto_AVpercentage_RBs"
     avg_speed_sec = 10
     min_num_vehicles = 100
     # base_dir = "/media/bassel/Career/toronto_content_selection/toronto_more_buses"
     # avg_speed_sec = 10
-    # min_num_vehicles = 100
-    # base_dir = "/media/bassel/Career/toronto_content_selection/toronto_dense"
-    # avg_speed_sec = 10
-    # min_num_vehicles = 400
+    min_num_vehicles = 100
+    base_dir = "/media/bassel/Career/toronto_content_selection/toronto_dense"
+    avg_speed_sec = 10
+    min_num_vehicles = 400
 
-    delete_all_results = True
-    # delete_all_results = False
+    # delete_all_results = True
+    delete_all_results = False
     # delete all results
     if delete_all_results:
         answer = input("Are you sure to delete ALL the results.txt and maps.png??")
@@ -284,11 +284,13 @@ if __name__ == '__main__':
                 maps = os.listdir(path)
                 maps = [path + map for map in maps]
                 maps.sort(key=lambda x: int(x.split('/')[-1]))
+
                 for p in maps:
                     # paths = glob.glob(p + "/result*.txt")
                     # for p2 in paths:
                     #     os.remove(p2)
                     paths = glob.glob(p + "/map*.png")
+
                     for p2 in paths:
                         os.remove(p2)
                     # paths = glob.glob(p + "/GNSS*.pkl")
