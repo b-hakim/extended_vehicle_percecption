@@ -4,6 +4,8 @@ import random
 import time
 import numpy as np
 import sumolib
+
+from math_utils import euclidean_distance, move_point, get_new_abs_pos
 from solver import Solver
 
 
