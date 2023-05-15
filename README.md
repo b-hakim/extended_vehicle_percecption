@@ -21,3 +21,14 @@ https://sumo.dlr.de/docs/Simulation/Randomness.html
 
 - Example on random types:
 https://sumo-user.narkive.com/qiPPGoIq/using-vtypedistribution
+
+Kindly cite this paper if you are using it:
+@article{hakim2023ccpav,
+  title={CCPAV: Centralized cooperative perception for autonomous vehicles using CV2X},
+  author={Hakim, Bassel and Sorour, Sameh and Hefeida, Mohamed S and Alasmary, Waleed S and Almotairi, Khaled H},
+  journal={Ad Hoc Networks},
+  volume={142},
+  pages={103101},
+  year={2023},
+  publisher={Elsevier}
+}
