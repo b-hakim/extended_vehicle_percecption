@@ -23,7 +23,7 @@ https://sumo.dlr.de/docs/Simulation/Randomness.html
 https://sumo-user.narkive.com/qiPPGoIq/using-vtypedistribution
 
 Kindly cite this paper if you are using it:
-@article{hakim2023ccpav,
+> @article{hakim2023ccpav,
   title={CCPAV: Centralized cooperative perception for autonomous vehicles using CV2X},
   author={Hakim, Bassel and Sorour, Sameh and Hefeida, Mohamed S and Alasmary, Waleed S and Almotairi, Khaled H},
   journal={Ad Hoc Networks},
